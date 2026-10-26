@@ -1,26 +1,6 @@
-# Miscellaneous
-*.class
-*.log
-*.pyc
-*.swp
-.DS_Store
-.atom/
-.buildlog/
-.history
-.svn/
-migrate_working_dir/
-
-# IntelliJ related
-*.iml
-*.ipr
-*.iws
-.idea/
-
-# Visual Studio Code related
-.vscode/
-
-# Flutter/Dart/Pub related
-**/doc/api/
+# --------------------------------------------------
+# Flutter & Dart 相关产物与缓存
+# --------------------------------------------------
 .dart_tool/
 .flutter-plugins
 .flutter-plugins-dependencies
@@ -28,9 +8,96 @@ migrate_working_dir/
 .pub-cache/
 .pub/
 /build/
-
-# Windows
-windows/flutter/ephemeral/
-
-# Widget Preview related
+**/doc/api/
 .widget_preview/
+
+# Symbol 调试与代码覆盖
+coverage/
+*.info
+
+# --------------------------------------------------
+# Windows 原生平台构建与临时文件
+# --------------------------------------------------
+windows/flutter/ephemeral/
+windows/x64/
+windows/x86/
+windows/*.suo
+windows/*.user
+windows/*.userosscache
+windows/*.sln.docstates
+windows/*.[Cc]ache
+!windows/*.[Cc]ache/
+*.obj
+*.pdb
+*.idb
+*.ilk
+
+# --------------------------------------------------
+# IDE 与编辑器配置文件
+# --------------------------------------------------
+# Visual Studio Code
+.vscode/*
+!.vscode/launch.json
+!.vscode/tasks.json
+!.vscode/settings.json
+
+# Android Studio / IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# 其他编辑器
+.atom/
+.history/
+.svn/
+*.swp
+*.swo
+
+# --------------------------------------------------
+# 系统缓存与临时文件
+# --------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+[Dd]esktop.ini
+
+# 日志与备份
+*.log
+*.tmp
+*.bak
+
+# Android Studio / IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# 其他编辑器
+.atom/
+.history/
+.svn/
+*.swp
+*.swo
+
+# --------------------------------------------------
+# 系统缓存与临时文件
+# --------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+[Dd]esktop.ini
+
+# 日志与备份
+*.log
+*.tmp
+*.bak
+
