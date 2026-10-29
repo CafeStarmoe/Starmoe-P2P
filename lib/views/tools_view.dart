@@ -12,7 +12,7 @@ class ToolsView extends StatefulWidget {
 
 class _ToolsViewState extends State<ToolsView> {
   final TextEditingController _targetCtrl =
-      TextEditingController(text: 'public.easytier.cn');
+      TextEditingController(text: 'et.stmoe.cn');
   bool _isTesting = false;
   PingResult? _lastResult;
 
@@ -113,7 +113,6 @@ class _ToolsViewState extends State<ToolsView> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  // 快捷目标节点标签
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,

@@ -12,8 +12,6 @@ class RoomsView extends StatefulWidget {
 }
 
 class _RoomsViewState extends State<RoomsView> {
-  RoomCategory? _selectedCategory;
-
   IconData _getCategoryIcon(RoomCategory category) {
     switch (category) {
       case RoomCategory.gaming:
@@ -29,7 +27,6 @@ class _RoomsViewState extends State<RoomsView> {
     }
   }
 
-  /// 弹出新建开黑房间对话框
   void _showCreateRoomDialog() {
     final nameCtrl = TextEditingController(text: '我的房间');
     final descCtrl = TextEditingController();
@@ -65,13 +62,13 @@ class _RoomsViewState extends State<RoomsView> {
                     TextField(
                       controller: nameCtrl,
                       decoration: const InputDecoration(
-                        hintText: '如：幻兽帕鲁服务器、泰拉瑞亚开黑、求生之路2',
+                        hintText: '如：普通长弓啥也不干纯钓鱼的来',
                         border: OutlineInputBorder(),
                         prefixIcon: Icon(Icons.drive_file_rename_outline),
                       ),
                     ),
                     const SizedBox(height: 16),
-                    const Text('游戏类型 / 场景：',
+                    const Text('房间类型：',
                         style: TextStyle(fontWeight: FontWeight.w600)),
                     const SizedBox(height: 8),
                     Wrap(
@@ -293,11 +290,6 @@ class _RoomsViewState extends State<RoomsView> {
     final provider = context.watch<EasyTierProvider>();
     final theme = Theme.of(context);
 
-    final filteredRooms = provider.rooms.where((r) {
-      if (_selectedCategory == null) return true;
-      return r.category == _selectedCategory;
-    }).toList();
-
     return Padding(
       padding: const EdgeInsets.all(24.0),
       child: Column(
@@ -336,39 +328,11 @@ class _RoomsViewState extends State<RoomsView> {
               ),
             ],
           ),
-          const SizedBox(height: 16),
-
-          // 场景分类标签过滤
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                ChoiceChip(
-                  label: const Text('全部游戏/场景'),
-                  selected: _selectedCategory == null,
-                  onSelected: (val) => setState(() => _selectedCategory = null),
-                ),
-                const SizedBox(width: 8),
-                ...RoomCategory.values.map((cat) {
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8.0),
-                    child: ChoiceChip(
-                      avatar: Icon(_getCategoryIcon(cat), size: 16),
-                      label: Text(cat.label),
-                      selected: _selectedCategory == cat,
-                      onSelected: (val) =>
-                          setState(() => _selectedCategory = val ? cat : null),
-                    ),
-                  );
-                }),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
 
           // 房间列表
           Expanded(
-            child: filteredRooms.isEmpty
+            child: provider.rooms.isEmpty
                 ? Center(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
@@ -376,16 +340,16 @@ class _RoomsViewState extends State<RoomsView> {
                         Icon(Icons.meeting_room_outlined,
                             size: 64, color: theme.colorScheme.outline),
                         const SizedBox(height: 16),
-                        Text('暂无此分类的房间', style: theme.textTheme.titleMedium),
+                        Text('暂无房间', style: theme.textTheme.titleMedium),
                         const SizedBox(height: 8),
                         const Text('点击右上角「创建房间」即可创建你的专属房间'),
                       ],
                     ),
                   )
                 : ListView.builder(
-                    itemCount: filteredRooms.length,
+                    itemCount: provider.rooms.length,
                     itemBuilder: (context, index) {
-                      final room = filteredRooms[index];
+                      final room = provider.rooms[index];
                       final isConnectedCurrent = provider.isRunning &&
                           provider.currentRoom?.id == room.id;
 

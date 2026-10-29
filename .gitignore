@@ -8,6 +8,7 @@
 /build/
 **/doc/api/
 .widget_preview/
+.gradle/
 
 coverage/
 *.info
