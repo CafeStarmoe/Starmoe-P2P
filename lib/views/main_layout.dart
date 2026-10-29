@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import '../providers/easytier_provider.dart';
 import '../widgets/status_badge.dart';
 import 'dashboard_view.dart';
-import 'rooms_view.dart';
 import 'peers_view.dart';
 import 'config_view.dart';
 import 'logs_view.dart';
@@ -22,7 +21,6 @@ class _MainLayoutState extends State<MainLayout> {
 
   final List<Widget> _views = const [
     DashboardView(),
-    RoomsView(),
     PeersView(),
     ConfigView(),
     LogsView(),
@@ -100,11 +98,6 @@ class _MainLayoutState extends State<MainLayout> {
                           icon: Icon(Icons.dashboard_outlined),
                           selectedIcon: Icon(Icons.dashboard),
                           label: Text('Dashboard'),
-                        ),
-                        NavigationRailDestination(
-                          icon: Icon(Icons.meeting_room_outlined),
-                          selectedIcon: Icon(Icons.meeting_room),
-                          label: Text('Rooms'),
                         ),
                         NavigationRailDestination(
                           icon: Icon(Icons.people_alt_outlined),

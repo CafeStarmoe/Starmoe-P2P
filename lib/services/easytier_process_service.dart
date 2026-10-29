@@ -15,7 +15,8 @@ class EasyTierProcessService {
   DateTime? _startedAt;
   String _resolvedCorePath = '';
 
-  final StreamController<String> _logController = StreamController<String>.broadcast();
+  final StreamController<String> _logController =
+      StreamController<String>.broadcast();
   Stream<String> get logStream => _logController.stream;
 
   bool get isRunning => _isRunning;
@@ -28,8 +29,10 @@ class EasyTierProcessService {
   /// 检查核心程序是否存在或可用
   static Future<bool> checkCoreAvailable(String path) async {
     try {
-      final realPath = await EasyTierPathResolver.resolveCorePath(customPath: path);
-      final workDir = File(realPath).existsSync() ? File(realPath).parent.path : null;
+      final realPath =
+          await EasyTierPathResolver.resolveCorePath(customPath: path);
+      final workDir =
+          File(realPath).existsSync() ? File(realPath).parent.path : null;
       final result = await Process.run(
         realPath,
         ['--version'],
@@ -46,6 +49,7 @@ class EasyTierProcessService {
   Future<bool> start({
     required String corePath,
     required NetworkConfig config,
+    required String configFilePath,
     String? username,
     required LogCallback onLog,
     required StatusCallback onStatusChange,
@@ -56,20 +60,32 @@ class EasyTierProcessService {
     }
 
     // 智能解析真实路径（内置 bin/ 优先）
-    _resolvedCorePath = await EasyTierPathResolver.resolveCorePath(customPath: corePath);
+    _resolvedCorePath =
+        await EasyTierPathResolver.resolveCorePath(customPath: corePath);
     final coreFile = File(_resolvedCorePath);
     final isFileExist = await coreFile.exists();
     final workDir = isFileExist ? coreFile.parent.path : null;
 
-    final args = config.toCommandLineArgs();
+    final args = ['--config-file', configFilePath];
+    if (config.additionalArgs.trim().isNotEmpty) {
+      args.addAll(
+        config.additionalArgs
+            .trim()
+            .split(RegExp(r'\s+'))
+            .where((arg) => arg.isNotEmpty),
+      );
+    }
     // 如果配置了自定义用户名，通过 --hostname 注入标识该节点
-    if (username != null && username.trim().isNotEmpty && !args.contains('--hostname')) {
+    if (username != null &&
+        username.trim().isNotEmpty &&
+        !args.contains('--hostname')) {
       args.addAll(['--hostname', username.trim()]);
     }
 
     onLog('========================================================');
     onLog('[启动] 正在启动 EasyTier 核心服务...');
-    onLog('[可执行文件] $_resolvedCorePath ${isFileExist ? "(已定位到本地程序)" : "(依赖系统 PATH)"}');
+    onLog(
+        '[可执行文件] $_resolvedCorePath ${isFileExist ? "(已定位到本地程序)" : "(依赖系统 PATH)"}');
     if (workDir != null) {
       onLog('[工作目录] $workDir (支持加载同目录 wintun.dll 等驱动)');
     }
@@ -77,19 +93,20 @@ class EasyTierProcessService {
     onLog('========================================================');
 
     try {
-      _process = await Process.start(
+      final process = await Process.start(
         _resolvedCorePath,
         args,
         workingDirectory: workDir,
-        runInShell: true,
+        runInShell: false,
       );
+      _process = process;
       _isRunning = true;
       _startedAt = DateTime.now();
       _virtualIp = config.useDhcp ? '获取中...' : config.ipv4;
       onStatusChange(_isRunning, _virtualIp);
 
       // 处理标准输出
-      _process!.stdout
+      process.stdout
           .transform(utf8.decoder)
           .transform(const LineSplitter())
           .listen((line) {
@@ -102,7 +119,7 @@ class EasyTierProcessService {
       });
 
       // 处理错误输出
-      _process!.stderr
+      process.stderr
           .transform(utf8.decoder)
           .transform(const LineSplitter())
           .listen((line) {
@@ -111,8 +128,9 @@ class EasyTierProcessService {
       });
 
       // 监听退出
-      _process!.exitCode.then((code) {
+      process.exitCode.then((code) {
         onLog('[退出] EasyTier 核心服务已终止，退出码: $code', isError: code != 0);
+        if (!identical(_process, process)) return;
         _isRunning = false;
         _virtualIp = '';
         _startedAt = null;
@@ -124,7 +142,8 @@ class EasyTierProcessService {
       return true;
     } catch (e) {
       onLog('[异常] 无法启动 $_resolvedCorePath: $e', isError: true);
-      onLog('[提示] 请检查项目根目录的 .\\bin 目录下是否存在 easytier-core.exe 与 wintun.dll。', isError: true);
+      onLog('[提示] 请检查项目根目录的 .\\bin 目录下是否存在 easytier-core.exe 与 wintun.dll。',
+          isError: true);
       _isRunning = false;
       onStatusChange(false, '');
       return false;
@@ -133,11 +152,22 @@ class EasyTierProcessService {
 
   /// 停止 EasyTier 核心
   Future<void> stop() async {
-    if (_process != null) {
-      _process!.kill(ProcessSignal.sigterm);
-      await Future.delayed(const Duration(milliseconds: 500));
-      _process?.kill(ProcessSignal.sigkill);
-      _process = null;
+    final process = _process;
+    if (process != null) {
+      process.kill();
+      try {
+        await process.exitCode.timeout(const Duration(seconds: 2));
+      } on TimeoutException {
+        process.kill(ProcessSignal.sigkill);
+        try {
+          await process.exitCode.timeout(const Duration(seconds: 2));
+        } on TimeoutException {
+          throw StateError('无法终止 EasyTier 核心进程 (PID ${process.pid})');
+        }
+      }
+      if (identical(_process, process)) {
+        _process = null;
+      }
     }
     _mockStatsTimer?.cancel();
     _isRunning = false;
@@ -147,7 +177,9 @@ class EasyTierProcessService {
 
   /// 从日志输出中自动解析虚拟 IP
   void _parseLogForStatus(String line, void Function(String ip) onIpDetected) {
-    final ipRegex = RegExp(r'(?:ipv4|ip|assigned)[\s:=]+((?:10|172|192)\.\d{1,3}\.\d{1,3}\.\d{1,3})', caseSensitive: false);
+    final ipRegex = RegExp(
+        r'(?:ipv4|ip|assigned)[\s:=]+((?:10|172|192)\.\d{1,3}\.\d{1,3}\.\d{1,3})',
+        caseSensitive: false);
     final match = ipRegex.firstMatch(line);
     if (match != null && match.groupCount >= 1) {
       final ip = match.group(1);
@@ -162,7 +194,8 @@ class EasyTierProcessService {
     if (!_isRunning) return [];
 
     try {
-      final cliPath = await EasyTierPathResolver.resolveCliPath(customCorePath: _resolvedCorePath);
+      final cliPath = await EasyTierPathResolver.resolveCliPath(
+          customCorePath: _resolvedCorePath);
       final cliFile = File(cliPath);
       final workDir = cliFile.existsSync() ? cliFile.parent.path : null;
 
@@ -187,12 +220,14 @@ class EasyTierProcessService {
     final List<PeerInfo> peers = [];
     final lines = const LineSplitter().convert(output);
     for (final line in lines) {
-      final parts = line.split(RegExp(r'\s+')).where((e) => e.isNotEmpty).toList();
+      final parts =
+          line.split(RegExp(r'\s+')).where((e) => e.isNotEmpty).toList();
       if (parts.length >= 4 && parts[0] != 'peer_id') {
         peers.add(PeerInfo(
           peerId: parts[0],
           ipv4: parts.length > 1 ? parts[1] : '10.144.144.x',
-          tunnelType: parts.any((e) => e.contains('p2p')) ? 'P2P Direct' : 'Relay',
+          tunnelType:
+              parts.any((e) => e.contains('p2p')) ? 'P2P Direct' : 'Relay',
           latencyMs: 15,
         ));
       }
@@ -201,8 +236,14 @@ class EasyTierProcessService {
   }
 
   void dispose() {
-    _mockStatsTimer?.cancel();
-    stop();
-    _logController.close();
+    unawaited(
+      stop().then<void>(
+        (_) => _logController.close(),
+        onError: (Object error, StackTrace stackTrace) {
+          stderr.writeln('Failed to stop EasyTier during disposal: $error');
+          return _logController.close();
+        },
+      ),
+    );
   }
 }

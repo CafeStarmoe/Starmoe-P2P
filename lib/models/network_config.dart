@@ -39,10 +39,10 @@ class NetworkConfig {
         proxyNetworks = proxyNetworks ?? [];
 
   /// 生成一份全新的默认配置
-  factory NetworkConfig.createDefault({String? name}) {
+  factory NetworkConfig.createDefault({String? name, String? id}) {
     final timestamp = DateTime.now().millisecondsSinceEpoch;
     return NetworkConfig(
-      id: 'cfg_$timestamp',
+      id: id ?? 'cfg_$timestamp',
       profileName: name ?? '新建网络配置',
       networkName: 'my_easytier',
       networkSecret: '',
@@ -170,7 +170,11 @@ class NetworkConfig {
   }
 
   /// 从 easytier-core TOML 配置解析 NetworkConfig。
-  static NetworkConfig fromToml(String tomlString, {String? defaultName}) {
+  static NetworkConfig fromToml(
+    String tomlString, {
+    String? defaultName,
+    String? id,
+  }) {
     final decoded = TomlDocument.parse(tomlString).toMap();
     final config = _stringKeyedMap(decoded);
     if (config.isEmpty && tomlString.trim().isNotEmpty) {
@@ -247,7 +251,7 @@ class NetworkConfig {
                 : '导入配置_$timestamp');
 
     return NetworkConfig(
-      id: 'cfg_$timestamp',
+      id: id ?? 'cfg_$timestamp',
       profileName: profileName,
       networkName: networkName,
       networkSecret: networkSecret,
@@ -315,7 +319,9 @@ class NetworkConfig {
       );
 
   NetworkConfig clone({String? newId, String? newName}) {
-    return NetworkConfig.fromJson(jsonDecode(jsonEncode(toJson())))
+    final json = Map<String, dynamic>.from(toJson())
+      ..['id'] = newId ?? 'cfg_${DateTime.now().microsecondsSinceEpoch}';
+    return NetworkConfig.fromJson(jsonDecode(jsonEncode(json)))
       ..profileName = newName ?? '$profileName (副本)';
   }
 }

@@ -28,6 +28,7 @@ class _DashboardViewState extends State<DashboardView> {
   void _checkFirstTimeUsername() {
     if (_hasPromptedUsername) return;
     final provider = context.read<EasyTierProvider>();
+    if (!provider.isInitialized) return;
     if (provider.username.isEmpty) {
       _hasPromptedUsername = true;
       _showUsernameDialog(isFirstTime: true);
@@ -58,7 +59,7 @@ class _DashboardViewState extends State<DashboardView> {
             children: [
               Text(
                 isFirstTime
-                    ? '设置一个你的联机游戏昵称，房间内的队友将直接看到你的昵称：'
+                    ? '设置一个你的联机游戏昵称，网络中的对等节点将直接看到你的昵称：'
                     : '设置后，联机队友列表中将优先展示此昵称：',
                 style: const TextStyle(fontSize: 13),
               ),
@@ -132,11 +133,32 @@ class _DashboardViewState extends State<DashboardView> {
     final currentUsername =
         provider.username.isNotEmpty ? provider.username : '未设置';
 
+    if (provider.isInitialized && !_hasPromptedUsername) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _checkFirstTimeUsername();
+      });
+    }
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (provider.configError != null) ...[
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.errorContainer,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                '读取 config 文件夹中的 TOML 配置失败：${provider.configError}',
+                style: TextStyle(color: theme.colorScheme.onErrorContainer),
+              ),
+            ),
+          ],
           if (provider.hasUpdate && provider.versionInfo != null) ...[
             Container(
               margin: const EdgeInsets.only(bottom: 16),
@@ -298,7 +320,7 @@ class _DashboardViewState extends State<DashboardView> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          '房间标识: ${currentConfig?.networkName ?? "未配置"}  |  启动时长: ${_formatDuration(provider.uptime)}',
+                          '网络标识: ${currentConfig?.networkName ?? "未配置"}  |  启动时长: ${_formatDuration(provider.uptime)}',
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: theme.colorScheme.outline,
                           ),
@@ -426,12 +448,6 @@ class _DashboardViewState extends State<DashboardView> {
                     ),
                   ),
                   // const SizedBox(height: 6),
-                  // Text(
-                  //   '点击上方“启动服务”或在“开黑房间”中选择房间，即可与好友一同联机游戏。',
-                  //   style: theme.textTheme.bodyMedium?.copyWith(
-                  //     color: theme.colorScheme.outline,
-                  //   ),
-                  // ),
                 ],
               ),
             )
@@ -440,7 +456,7 @@ class _DashboardViewState extends State<DashboardView> {
               width: double.infinity,
               padding: const EdgeInsets.all(32),
               alignment: Alignment.center,
-              child: const Text('正在寻找该房间中其他对等节点...'),
+              child: const Text('正在寻找网络中的其他对等节点...'),
             )
           else
             Column(

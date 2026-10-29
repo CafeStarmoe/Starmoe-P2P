@@ -90,13 +90,46 @@ class _ConfigViewState extends State<ConfigView> {
   void _saveCurrentConfig() {
     if (!_formKey.currentState!.validate()) return;
 
-    final provider = context.read<EasyTierProvider>();
-    final config = _buildCurrentConfig();
+    _persistConfig(
+      _buildCurrentConfig(),
+      successMessage: '配置 [${_profileNameCtrl.text.trim()}] 已保存！',
+    );
+  }
 
-    provider.saveConfig(config);
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('配置 [${config.profileName}] 已保存！')));
+  Future<void> _persistConfig(
+    NetworkConfig config, {
+    String? successMessage,
+  }) async {
+    try {
+      await context.read<EasyTierProvider>().saveConfig(config);
+      if (!mounted) return;
+      _loadConfig(config);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(successMessage ?? '配置 [${config.profileName}] 已保存！'),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('保存配置失败: $error')),
+      );
+    }
+  }
+
+  Future<void> _deleteConfig(String configId) async {
+    try {
+      final provider = context.read<EasyTierProvider>();
+      await provider.deleteConfig(configId);
+      if (mounted && _currentEditingId == configId) {
+        _loadConfig(provider.currentConfig ?? provider.configs.first);
+      }
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('删除配置失败: $error')),
+      );
+    }
   }
 
   /// 导入 EasyTier TOML 配置。
@@ -262,7 +295,7 @@ class _ConfigViewState extends State<ConfigView> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('将本地局域网段发布给房间中的其他对等节点使用，CIDR 格式：'),
+            const Text('将本地局域网段发布给网络中的其他对等节点使用，CIDR 格式：'),
             const SizedBox(height: 12),
             TextField(
               controller: ctrl,
@@ -310,6 +343,15 @@ class _ConfigViewState extends State<ConfigView> {
     final provider = context.watch<EasyTierProvider>();
     final theme = Theme.of(context);
 
+    if (provider.currentConfig != null &&
+        provider.currentConfig!.id != _currentEditingId) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && provider.currentConfig != null) {
+          _loadConfig(provider.currentConfig!);
+        }
+      });
+    }
+
     return Row(
       children: [
         // 左侧：配置列表
@@ -342,13 +384,26 @@ class _ConfigViewState extends State<ConfigView> {
                         final newCfg = NetworkConfig.createDefault(
                           name: '新建_${provider.configs.length + 1}',
                         );
-                        provider.saveConfig(newCfg);
-                        _loadConfig(newCfg);
+                        _persistConfig(newCfg);
                       },
                     ),
                   ],
                 ),
               ),
+              // if (provider.configDirectoryPath != null)
+              //   Padding(
+              //     padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              //     child: Tooltip(
+              //       message: provider.configDirectoryPath!,
+              //       child: Text(
+              //         'TOML 配置目录: ${provider.configDirectoryPath}',
+              //         maxLines: 2,
+              //         overflow: TextOverflow.ellipsis,
+              //         style: theme.textTheme.bodySmall
+              //             ?.copyWith(color: theme.colorScheme.outline),
+              //       ),
+              //     ),
+              //   ),
               const Divider(height: 1),
               Expanded(
                 child: ListView.builder(
@@ -367,7 +422,9 @@ class _ConfigViewState extends State<ConfigView> {
                         overflow: TextOverflow.ellipsis,
                       ),
                       subtitle: Text(
-                        cfg.networkName.isEmpty ? '未配置房间/用户名' : cfg.networkName,
+                        cfg.networkName.isEmpty
+                            ? '未配置网络名/用户名'
+                            : cfg.networkName,
                         style: const TextStyle(fontSize: 12),
                       ),
                       leading: Icon(
@@ -381,16 +438,12 @@ class _ConfigViewState extends State<ConfigView> {
                         onSelected: (val) {
                           if (val == 'clone') {
                             final cloned = cfg.clone();
-                            provider.saveConfig(cloned);
-                            _loadConfig(cloned);
+                            _persistConfig(cloned);
                           } else if (val == 'export') {
                             _exportTomlConfig();
                           } else if (val == 'delete') {
                             if (provider.configs.length > 1) {
-                              provider.deleteConfig(cfg.id);
-                              if (_currentEditingId == cfg.id) {
-                                _loadConfig(provider.configs.first);
-                              }
+                              _deleteConfig(cfg.id);
                             } else {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(content: Text('至少需要保留一份配置')),
@@ -469,6 +522,23 @@ class _ConfigViewState extends State<ConfigView> {
                       ),
                     ],
                   ),
+                  if (provider.configError != null) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.errorContainer,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '读取配置失败: ${provider.configError}',
+                        style: TextStyle(
+                          color: theme.colorScheme.onErrorContainer,
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 20),
 
                   // 基础配置
@@ -513,12 +583,12 @@ class _ConfigViewState extends State<ConfigView> {
                                 child: TextFormField(
                                   controller: _networkNameCtrl,
                                   decoration: const InputDecoration(
-                                    labelText: '房间 (network-name)',
-                                    hintText: '对等节点需要进入相同房间才能互相连接',
+                                    labelText: '网络名 (network-name)',
+                                    hintText: '对等节点需要加入相同网络才能互相连接',
                                     border: OutlineInputBorder(),
                                   ),
                                   validator: (v) =>
-                                      v!.isEmpty ? '请输入房间名' : null,
+                                      v!.isEmpty ? '请输入网络名' : null,
                                 ),
                               ),
                             ],
@@ -528,7 +598,7 @@ class _ConfigViewState extends State<ConfigView> {
                             controller: _networkSecretCtrl,
                             obscureText: true,
                             decoration: const InputDecoration(
-                              labelText: '房间密码 (network-secret)',
+                              labelText: '网络密码 (network-secret)',
                               hintText: '留空则不设密码',
                               border: OutlineInputBorder(),
                             ),
@@ -570,7 +640,7 @@ class _ConfigViewState extends State<ConfigView> {
                               '启用 DHCP 自动分配局域网 IP (-d, --dhcp)',
                             ),
                             subtitle: const Text(
-                              '由 EasyTier 自动向房间内各节点分配不冲突的虚拟 IP',
+                              '由 EasyTier 自动向网络内各节点分配不冲突的虚拟 IP',
                             ),
                             value: _useDhcp,
                             onChanged: (val) => setState(() => _useDhcp = val),

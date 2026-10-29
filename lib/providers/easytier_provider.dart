@@ -5,7 +5,6 @@ import '../models/network_config.dart';
 import '../models/peer_info.dart';
 import '../models/app_settings.dart';
 import '../models/core_version_info.dart';
-import '../models/room.dart';
 import '../services/storage_service.dart';
 import '../services/easytier_process_service.dart';
 import '../services/easytier_updater_service.dart';
@@ -17,12 +16,11 @@ class EasyTierProvider extends ChangeNotifier {
   NetworkConfig? _currentConfig;
   AppSettings _settings = AppSettings();
 
-  // 虚拟房间管理
-  List<Room> _rooms = [];
-  Room? _currentRoom;
-
   bool _isConnecting = false;
+  bool _isInitialized = false;
   bool _isRunning = false;
+  String? _configError;
+  String? _configDirectoryPath;
   String _virtualIp = '';
   DateTime? _startedAt;
 
@@ -52,8 +50,9 @@ class EasyTierProvider extends ChangeNotifier {
   List<NetworkConfig> get configs => _configs;
   NetworkConfig? get currentConfig => _currentConfig;
   AppSettings get settings => _settings;
-  List<Room> get rooms => List.unmodifiable(_rooms);
-  Room? get currentRoom => _currentRoom;
+  bool get isInitialized => _isInitialized;
+  String? get configError => _configError;
+  String? get configDirectoryPath => _configDirectoryPath;
   bool get isConnecting => _isConnecting;
   bool get isRunning => _isRunning;
   String get virtualIp => _virtualIp;
@@ -65,7 +64,9 @@ class EasyTierProvider extends ChangeNotifier {
   List<String> get logs => List.unmodifiable(_logs);
   List<PeerInfo> get peers => List.unmodifiable(_peers);
 
-  Duration get uptime => _startedAt != null ? DateTime.now().difference(_startedAt!) : Duration.zero;
+  Duration get uptime => _startedAt != null
+      ? DateTime.now().difference(_startedAt!)
+      : Duration.zero;
 
   // 更新相关 Getters
   String get currentCoreVersion => _currentCoreVersion;
@@ -78,19 +79,23 @@ class EasyTierProvider extends ChangeNotifier {
 
   Future<void> _init() async {
     _settings = await StorageService.loadSettings();
-    _configs = await StorageService.loadConfigs();
-    _rooms = await StorageService.loadRooms();
-
-    if (_configs.isNotEmpty) {
-      if (_settings.selectedConfigId.isNotEmpty) {
+    try {
+      final configDirectory = await StorageService.getConfigDirectory();
+      _configDirectoryPath = configDirectory.path;
+      _configs = await StorageService.loadConfigs(
+        configDirectory: configDirectory,
+      );
+      if (_configs.isNotEmpty) {
         _currentConfig = _configs.firstWhere(
-          (c) => c.id == _settings.selectedConfigId,
+          (config) => config.id == 'default',
           orElse: () => _configs.first,
         );
-      } else {
-        _currentConfig = _configs.first;
       }
+    } catch (error) {
+      _configError = error.toString();
     }
+
+    _isInitialized = true;
 
     // 获取当前内置版本并在后台静默检查更新
     await refreshCurrentVersion();
@@ -98,69 +103,10 @@ class EasyTierProvider extends ChangeNotifier {
 
     notifyListeners();
 
-    if (_settings.autoStartCoreOnLaunch && _currentConfig != null) {
+    if (_settings.autoStartCoreOnLaunch &&
+        _currentConfig != null &&
+        _configError == null) {
       startService();
-    }
-  }
-
-  // ==================== 虚拟房间管理逻辑 ====================
-
-  /// 添加或更新房间
-  Future<void> saveRoom(Room room) async {
-    final idx = _rooms.indexWhere((r) => r.id == room.id);
-    if (idx >= 0) {
-      _rooms[idx] = room;
-    } else {
-      _rooms.insert(0, room);
-    }
-    await StorageService.saveRooms(_rooms);
-    notifyListeners();
-  }
-
-  /// 删除房间
-  Future<void> deleteRoom(String roomId) async {
-    if (_currentRoom?.id == roomId && _isRunning) {
-      await stopService();
-      _currentRoom = null;
-    }
-    _rooms.removeWhere((r) => r.id == roomId);
-    await StorageService.saveRooms(_rooms);
-    notifyListeners();
-  }
-
-  /// 进入并一键连接指定虚拟房间
-  Future<bool> joinAndConnectRoom(Room room) async {
-    if (_isRunning) {
-      _addLog('[房间切换] 正在退出上一网络连接...');
-      await stopService();
-    }
-
-    _currentRoom = room;
-    // 基于房间属性临时构造/切换为当前网络配置
-    final roomCfg = room.toNetworkConfig();
-    _currentConfig = roomCfg;
-    notifyListeners();
-
-    _addLog('[虚拟房间] 正在进入房间:「${room.name}」(分类: ${room.category.label})...');
-    final success = await startService();
-    if (success) {
-      room.isConnected = true;
-    } else {
-      _currentRoom = null;
-    }
-    notifyListeners();
-    return success;
-  }
-
-  /// 退出当前房间连接
-  Future<void> leaveRoom() async {
-    if (_currentRoom != null) {
-      _addLog('[虚拟房间] 已离开房间「${_currentRoom!.name}」');
-      _currentRoom = null;
-      if (_isRunning) {
-        await stopService();
-      }
-      notifyListeners();
     }
   }
 
@@ -187,7 +133,8 @@ class EasyTierProvider extends ChangeNotifier {
       _currentCoreVersion = info.currentVersion;
       if (!silent) {
         if (info.hasUpdate) {
-          _addLog('[更新检查] 发现新版本: v${info.latestVersion} (当前版本: v${info.currentVersion})');
+          _addLog(
+              '[更新检查] 发现新版本: v${info.latestVersion} (当前版本: v${info.currentVersion})');
         } else {
           _addLog('[更新检查] 当前已是最新版本 (v${info.currentVersion})');
         }
@@ -265,9 +212,6 @@ class EasyTierProvider extends ChangeNotifier {
   void selectConfig(NetworkConfig config) {
     if (_isRunning) return;
     _currentConfig = config;
-    _currentRoom = null;
-    _settings.selectedConfigId = config.id;
-    StorageService.saveSettings(_settings);
     notifyListeners();
   }
 
@@ -279,20 +223,33 @@ class EasyTierProvider extends ChangeNotifier {
     } else {
       _configs.add(config);
     }
-    if (_currentConfig?.id == config.id || _currentConfig == null) {
-      _currentConfig = config;
-    }
-    await StorageService.saveConfigs(_configs);
+    final selectedId = _currentConfig?.id;
+    _configs = await StorageService.saveConfigs(_configs);
+    _currentConfig = _configs.isEmpty
+        ? null
+        : _configs.firstWhere(
+            (saved) => saved.id == (selectedId ?? config.id),
+            orElse: () => _configs.first,
+          );
+    _configError = null;
     notifyListeners();
   }
 
   /// 删除配置
   Future<void> deleteConfig(String configId) async {
-    _configs.removeWhere((c) => c.id == configId);
-    if (_currentConfig?.id == configId) {
-      _currentConfig = _configs.isNotEmpty ? _configs.first : null;
+    _configs.removeWhere((config) => config.id == configId);
+    _configs = await StorageService.saveConfigs(_configs);
+    if (_configs.isEmpty) {
+      _currentConfig = null;
+    } else if (_currentConfig?.id == configId) {
+      _currentConfig = _configs.first;
+    } else {
+      _currentConfig = _configs.firstWhere(
+        (config) => config.id == _currentConfig?.id,
+        orElse: () => _configs.first,
+      );
     }
-    await StorageService.saveConfigs(_configs);
+    _configError = null;
     notifyListeners();
   }
 
@@ -321,12 +278,22 @@ class EasyTierProvider extends ChangeNotifier {
       return false;
     }
 
+    final String configFilePath;
+    try {
+      configFilePath =
+          await StorageService.getConfigFilePath(_currentConfig!.id);
+    } catch (error) {
+      _addLog('[配置错误] 无法定位 TOML 配置文件: $error', isError: true);
+      return false;
+    }
+
     _isConnecting = true;
     notifyListeners();
 
     final success = await _processService.start(
       corePath: _settings.coreExecutablePath,
       config: _currentConfig!,
+      configFilePath: configFilePath,
       username: _settings.username,
       onLog: (line, {bool isError = false}) {
         _addLog(line, isError: isError);
@@ -337,7 +304,6 @@ class EasyTierProvider extends ChangeNotifier {
         _startedAt = _processService.startedAt;
         if (!_isRunning) {
           _stopMetrics();
-          _currentRoom = null;
         }
         notifyListeners();
       },
@@ -346,12 +312,13 @@ class EasyTierProvider extends ChangeNotifier {
     _isConnecting = false;
     if (success) {
       _isRunning = true;
-      _virtualIp = _currentConfig!.useDhcp ? '10.144.144.2 (DHCP分配中)' : _currentConfig!.ipv4;
+      _virtualIp = _currentConfig!.useDhcp
+          ? '10.144.144.2 (DHCP分配中)'
+          : _currentConfig!.ipv4;
       _startedAt = DateTime.now();
       _startMetrics();
     } else {
       _isRunning = false;
-      _currentRoom = null;
     }
     notifyListeners();
     return success;
@@ -364,7 +331,6 @@ class EasyTierProvider extends ChangeNotifier {
     _isRunning = false;
     _virtualIp = '';
     _startedAt = null;
-    _currentRoom = null;
     _stopMetrics();
     _addLog('[停止] EasyTier 服务已安全停止。');
     notifyListeners();
@@ -411,7 +377,8 @@ class EasyTierProvider extends ChangeNotifier {
 
     _refreshPeers();
     _peerRefreshTimer?.cancel();
-    _peerRefreshTimer = Timer.periodic(const Duration(seconds: 5), (_) => _refreshPeers());
+    _peerRefreshTimer =
+        Timer.periodic(const Duration(seconds: 5), (_) => _refreshPeers());
   }
 
   /// 停止监控

@@ -89,12 +89,12 @@ class _PeersViewState extends State<PeersView> {
                           style: theme.textTheme.titleMedium,
                         ),
                         const SizedBox(height: 8),
-                        const Text('开启服务或进入房间后，即可在此查看房间内所有节点的连通状态与延迟'),
+                        const Text('开启服务后，即可在此查看网络中所有节点的连通状态与延迟'),
                       ],
                     ),
                   )
                 : peers.isEmpty
-                    ? const Center(child: Text('当前房间暂无其他节点在线'))
+                    ? const Center(child: Text('当前网络暂无其他节点在线'))
                     : ListView.builder(
                         itemCount: peers.length,
                         itemBuilder: (context, index) =>
