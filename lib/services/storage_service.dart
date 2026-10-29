@@ -12,7 +12,7 @@ class StorageService {
   static const String _legacyConfigsKey = 'easytier_configs';
   static const String _settingsKey = 'easytier_settings';
 
-  static Future<Directory> getConfigDirectory() async {
+  static Future<Directory> getDataDirectory() async {
     final Directory appRoot;
     if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
       appRoot = Directory(p.dirname(Platform.resolvedExecutable));
@@ -20,7 +20,14 @@ class StorageService {
       appRoot = await getApplicationSupportDirectory();
     }
 
-    final directory = Directory(p.join(appRoot.path, 'config'));
+    final directory = Directory(p.join(appRoot.path, 'data'));
+    await directory.create(recursive: true);
+    return directory;
+  }
+
+  static Future<Directory> getConfigDirectory() async {
+    final dataDirectory = await getDataDirectory();
+    final directory = Directory(p.join(dataDirectory.path, 'config'));
     await directory.create(recursive: true);
     return directory;
   }
@@ -39,10 +46,22 @@ class StorageService {
   /// 加载 config 目录中的 EasyTier TOML 配置。
   static Future<List<NetworkConfig>> loadConfigs({
     Directory? configDirectory,
+    Directory? dataDirectory,
+    Directory? legacyConfigDirectory,
   }) async {
     final directory = configDirectory ?? await getConfigDirectory();
+    final resolvedDataDirectory = dataDirectory ??
+        (configDirectory == null
+            ? await getDataDirectory()
+            : Directory(p.dirname(configDirectory.path)));
     await directory.create(recursive: true);
     final prefs = await SharedPreferences.getInstance();
+    await _migrateLegacyConfigFiles(
+      directory,
+      legacyDirectory: legacyConfigDirectory ??
+          (configDirectory == null ? await _getLegacyConfigDirectory() : null),
+    );
+    final settings = await loadSettings(dataDirectory: resolvedDataDirectory);
 
     final tomlFiles = await directory
         .list()
@@ -62,7 +81,7 @@ class StorageService {
               p.basenameWithoutExtension(file.path).startsWith('profile_'),
         )
         .toList();
-    final selectedConfigId = _selectedConfigId(prefs.getString(_settingsKey));
+    final selectedConfigId = settings.selectedConfigId;
     profileFiles.sort((a, b) {
       final aId = _profileIdFromPath(a.path);
       final bId = _profileIdFromPath(b.path);
@@ -72,6 +91,7 @@ class StorageService {
     });
 
     if (profileFiles.isNotEmpty) {
+      await prefs.remove(_legacyConfigsKey);
       return [
         for (final file in profileFiles)
           await _readTomlFile(
@@ -82,6 +102,7 @@ class StorageService {
     }
 
     if (await defaultFile.exists()) {
+      await prefs.remove(_legacyConfigsKey);
       return [await _readTomlFile(defaultFile, id: 'default')];
     }
 
@@ -107,7 +128,10 @@ class StorageService {
             .toList();
         final saved = await saveConfigs(migrated, configDirectory: directory);
         if (selectedIndex >= 0 && configs[selectedIndex].id == 'default') {
-          await _saveSelectedConfigId(prefs, 'cfg_migrated_default');
+          await saveSettings(
+            settings..selectedConfigId = 'cfg_migrated_default',
+            dataDirectory: resolvedDataDirectory,
+          );
         }
         await prefs.remove(_legacyConfigsKey);
         return saved;
@@ -205,49 +229,92 @@ class StorageService {
     return rawId.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_');
   }
 
-  static Future<void> _saveSelectedConfigId(
-    SharedPreferences prefs,
-    String configId,
-  ) async {
-    final rawSettings = prefs.getString(_settingsKey);
-    if (rawSettings == null || rawSettings.isEmpty) return;
-    try {
-      final settings = jsonDecode(rawSettings) as Map<String, dynamic>;
-      settings['selectedConfigId'] = configId;
-      await prefs.setString(_settingsKey, jsonEncode(settings));
-    } catch (error) {
-      throw FormatException('无法更新迁移后的配置选择: $error');
-    }
-  }
-
-  static String _selectedConfigId(String? rawSettings) {
-    if (rawSettings == null || rawSettings.isEmpty) return '';
-    try {
-      return (jsonDecode(rawSettings)
-              as Map<String, dynamic>)['selectedConfigId'] as String? ??
-          '';
-    } catch (_) {
-      return '';
-    }
-  }
-
   /// 保存应用偏好设置
-  static Future<void> saveSettings(AppSettings settings) async {
+  static Future<void> saveSettings(
+    AppSettings settings, {
+    Directory? dataDirectory,
+  }) async {
+    final directory = dataDirectory ?? await getDataDirectory();
+    await directory.create(recursive: true);
+    final settingsFile = File(p.join(directory.path, 'settings.json'));
+    await settingsFile.writeAsString(
+      const JsonEncoder.withIndent('  ').convert(settings.toJson()),
+      flush: true,
+    );
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_settingsKey, jsonEncode(settings.toJson()));
+    await prefs.remove(_settingsKey);
   }
 
-  /// 加载应用偏好设置
-  static Future<AppSettings> loadSettings() async {
+  /// 加载应用偏好设置，并将旧版 SharedPreferences 设置迁移到 data/settings.json。
+  static Future<AppSettings> loadSettings({
+    Directory? dataDirectory,
+  }) async {
+    final directory = dataDirectory ?? await getDataDirectory();
+    await directory.create(recursive: true);
+    final settingsFile = File(p.join(directory.path, 'settings.json'));
     final prefs = await SharedPreferences.getInstance();
+    if (await settingsFile.exists()) {
+      try {
+        final settings = AppSettings.fromJson(
+          jsonDecode(await settingsFile.readAsString()) as Map<String, dynamic>,
+        );
+        await prefs.remove(_settingsKey);
+        return settings;
+      } catch (error) {
+        throw FormatException(
+          '无法读取应用设置文件 ${settingsFile.path}: $error',
+        );
+      }
+    }
+
     final raw = prefs.getString(_settingsKey);
     if (raw == null || raw.isEmpty) {
       return AppSettings();
     }
     try {
-      return AppSettings.fromJson(jsonDecode(raw) as Map<String, dynamic>);
-    } catch (_) {
-      return AppSettings();
+      final settings = AppSettings.fromJson(
+        jsonDecode(raw) as Map<String, dynamic>,
+      );
+      await settingsFile.writeAsString(
+        const JsonEncoder.withIndent('  ').convert(settings.toJson()),
+        flush: true,
+      );
+      await prefs.remove(_settingsKey);
+      return settings;
+    } catch (error) {
+      throw FormatException('无法迁移旧版应用设置到 ${settingsFile.path}: $error');
+    }
+  }
+
+  static Future<Directory> _getLegacyConfigDirectory() async {
+    final Directory appRoot;
+    if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+      appRoot = Directory(p.dirname(Platform.resolvedExecutable));
+    } else {
+      appRoot = await getApplicationSupportDirectory();
+    }
+    return Directory(p.join(appRoot.path, 'config'));
+  }
+
+  static Future<void> _migrateLegacyConfigFiles(
+    Directory destination, {
+    Directory? legacyDirectory,
+  }) async {
+    if (legacyDirectory == null ||
+        !await legacyDirectory.exists() ||
+        p.equals(
+          p.normalize(legacyDirectory.absolute.path),
+          p.normalize(destination.absolute.path),
+        )) {
+      return;
+    }
+
+    await for (final entity in legacyDirectory.list()) {
+      if (entity is! File || !_isManagedConfigFile(entity.path)) continue;
+      final target = File(p.join(destination.path, p.basename(entity.path)));
+      if (await target.exists()) continue;
+      await target.writeAsBytes(await entity.readAsBytes(), flush: true);
+      await entity.delete();
     }
   }
 }

@@ -9,6 +9,14 @@
       "deviceId": "windows"
     },
     {
+      "name": "EasyTier GUI (Windows Debug - Administrator)",
+      "request": "launch",
+      "type": "dart",
+      "program": "lib/main.dart",
+      "deviceId": "windows",
+      "preLaunchTask": "Check Administrator Privileges"
+    },
+    {
       "name": "EasyTier GUI (Windows Release)",
       "request": "launch",
       "type": "dart",

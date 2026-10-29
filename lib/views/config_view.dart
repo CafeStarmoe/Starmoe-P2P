@@ -390,13 +390,13 @@ class _ConfigViewState extends State<ConfigView> {
                   ],
                 ),
               ),
-              // if (provider.configDirectoryPath != null)
+              // if (provider.dataDirectoryPath != null)
               //   Padding(
               //     padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
               //     child: Tooltip(
-              //       message: provider.configDirectoryPath!,
+              //       message: provider.dataDirectoryPath!,
               //       child: Text(
-              //         'TOML 配置目录: ${provider.configDirectoryPath}',
+              //         '应用数据目录: ${provider.dataDirectoryPath}',
               //         maxLines: 2,
               //         overflow: TextOverflow.ellipsis,
               //         style: theme.textTheme.bodySmall

@@ -21,7 +21,7 @@ EasyTier is a simple, decentralized, and secure mesh VPN / SD-WAN solution writt
 
 - **Multi-Profile Management**
   - Store and switch across multiple network profiles seamlessly (e.g., Home LAN, Office Dev, Gaming).
-  - Save plain EasyTier-compatible TOML profiles in `config/` beside the desktop executable (mobile builds use the app support directory).
+  - Store application data under `data/` beside the desktop executable (mobile builds use the app support directory). User settings are saved as `data/settings.json`, and plain EasyTier-compatible TOML profiles are saved in `data/config/`.
   - Load `default.toml` only when no `profile_*.toml` profiles are available; configuration files are never generated automatically. Create a profile in the Config page or provide `default.toml` yourself.
   - Existing saved profiles are migrated to TOML on first launch.
   - Visual setup for network name (`network-name`), secret (`network-secret`), and DHCP / static IP.
@@ -44,6 +44,7 @@ EasyTier is a simple, decentralized, and secure mesh VPN / SD-WAN solution writt
 
 - **Client Settings**
   - **Out-of-the-Box Built-in Core**: Automatically discovers and invokes `easytier-core` and drivers from the project's `bin/` folder.
+  - Windows requests administrator permission at startup so EasyTier can create TUN adapters. Windows displays a UAC prompt; declining it prevents the application from starting.
   - Supports custom executable paths with instant validity testing.
   - Theme switching (Light / Dark / System).
   - Option to auto-connect on application startup.

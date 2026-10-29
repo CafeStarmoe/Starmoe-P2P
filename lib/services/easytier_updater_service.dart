@@ -4,19 +4,21 @@ import 'dart:io';
 import 'package:archive/archive.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 import '../models/core_version_info.dart';
 import 'easytier_path_resolver.dart';
+import 'storage_service.dart';
 
 typedef UpdateProgressCallback = void Function(double progress, String status);
 
 class EasyTierUpdaterService {
-  static const String _releasesApiUrl = 'https://api.github.com/repos/EasyTier/EasyTier/releases/latest';
+  static const String _releasesApiUrl =
+      'https://api.github.com/repos/EasyTier/EasyTier/releases/latest';
 
   /// 获取本地核心的当前版本号 (如 "2.6.4")
   static Future<String> getLocalVersion({String? corePath}) async {
     try {
-      final realPath = await EasyTierPathResolver.resolveCorePath(customPath: corePath);
+      final realPath =
+          await EasyTierPathResolver.resolveCorePath(customPath: corePath);
       final file = File(realPath);
       if (!await file.exists()) {
         return '未安装';
@@ -58,7 +60,8 @@ class EasyTierUpdaterService {
     ).timeout(const Duration(seconds: 10));
 
     if (response.statusCode != 200) {
-      throw Exception('无法连接到 GitHub Releases API (HTTP ${response.statusCode})');
+      throw Exception(
+          '无法连接到 GitHub Releases API (HTTP ${response.statusCode})');
     }
 
     final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -75,7 +78,9 @@ class EasyTierUpdaterService {
     for (final asset in assets) {
       final name = asset['name']?.toString().toLowerCase() ?? '';
       if (Platform.isWindows) {
-        if (name.contains('windows') && (name.contains('x86_64') || name.contains('x64')) && name.endsWith('.zip')) {
+        if (name.contains('windows') &&
+            (name.contains('x86_64') || name.contains('x64')) &&
+            name.endsWith('.zip')) {
           downloadUrl = asset['browser_download_url']?.toString() ?? '';
           downloadSize = (asset['size'] as num?)?.toInt() ?? 0;
           break;
@@ -87,7 +92,8 @@ class EasyTierUpdaterService {
           break;
         }
       } else if (Platform.isLinux) {
-        if (name.contains('linux') && (name.contains('x86_64') || name.contains('x64'))) {
+        if (name.contains('linux') &&
+            (name.contains('x86_64') || name.contains('x64'))) {
           downloadUrl = asset['browser_download_url']?.toString() ?? '';
           downloadSize = (asset['size'] as num?)?.toInt() ?? 0;
           break;
@@ -138,8 +144,15 @@ class EasyTierUpdaterService {
     }
 
     // 2. 准备临时下载路径
-    final tempDir = await getTemporaryDirectory();
-    final tempZipFile = File(p.join(tempDir.path, 'easytier_update_${DateTime.now().millisecondsSinceEpoch}.zip'));
+    final dataDirectory = await StorageService.getDataDirectory();
+    final updateDirectory = Directory(p.join(dataDirectory.path, 'updates'));
+    await updateDirectory.create(recursive: true);
+    final tempZipFile = File(
+      p.join(
+        updateDirectory.path,
+        'easytier_update_${DateTime.now().millisecondsSinceEpoch}.zip',
+      ),
+    );
 
     final client = http.Client();
     try {
@@ -160,7 +173,8 @@ class EasyTierUpdaterService {
         fileSink.add(chunk);
         receivedBytes += chunk.length;
         if (totalBytes > 0) {
-          final progress = 0.05 + (receivedBytes / totalBytes) * 0.70; // 5% ~ 75%
+          final progress =
+              0.05 + (receivedBytes / totalBytes) * 0.70; // 5% ~ 75%
           final receivedMb = (receivedBytes / (1024 * 1024)).toStringAsFixed(1);
           final totalMb = (totalBytes / (1024 * 1024)).toStringAsFixed(1);
           final pct = (progress * 100).toInt();
@@ -193,12 +207,14 @@ class EasyTierUpdaterService {
         bool writeSuccess = false;
         while (retry < 3 && !writeSuccess) {
           try {
-            await targetFile.writeAsBytes(file.content as List<int>, flush: true);
+            await targetFile.writeAsBytes(file.content as List<int>,
+                flush: true);
             writeSuccess = true;
           } catch (e) {
             retry++;
             if (retry >= 3) {
-              throw Exception('写入 $fileName 失败，文件可能正在被系统占用，请确认 EasyTier 进程已退出: $e');
+              throw Exception(
+                  '写入 $fileName 失败，文件可能正在被系统占用，请确认 EasyTier 进程已退出: $e');
             }
             await Future.delayed(const Duration(milliseconds: 300));
           }
@@ -217,4 +233,3 @@ class EasyTierUpdaterService {
     }
   }
 }
-

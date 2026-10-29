@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
+import '../models/app_settings.dart';
 import '../providers/easytier_provider.dart';
 import '../services/easytier_process_service.dart';
 import '../services/easytier_path_resolver.dart';
@@ -87,9 +88,21 @@ class _SettingsViewState extends State<SettingsView> {
   }
 
   void _updateCorePath(String path) {
+    _updateSettings((settings) => settings.coreExecutablePath = path);
+  }
+
+  Future<void> _updateSettings(void Function(AppSettings) update) async {
     final provider = context.read<EasyTierProvider>();
-    final settings = provider.settings..coreExecutablePath = path;
-    provider.updateSettings(settings);
+    final settings = AppSettings.fromJson(provider.settings.toJson());
+    update(settings);
+    try {
+      await provider.updateSettings(settings);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('保存应用设置失败: $error')),
+      );
+    }
   }
 
   Future<void> _onCheckUpdatePressed() async {
@@ -427,8 +440,8 @@ class _SettingsViewState extends State<SettingsView> {
                       ],
                       selected: {settings.themeMode},
                       onSelectionChanged: (set) {
-                        final s = settings..themeMode = set.first;
-                        provider.updateSettings(s);
+                        _updateSettings(
+                            (settings) => settings.themeMode = set.first);
                       },
                     ),
                   ),
@@ -438,10 +451,9 @@ class _SettingsViewState extends State<SettingsView> {
                     title: const Text('客户端启动时自动启动服务'),
                     subtitle: const Text('打开客户端后立即按照上次配置文件启动Easytier服务'),
                     value: settings.autoStartCoreOnLaunch,
-                    onChanged: (val) {
-                      final s = settings..autoStartCoreOnLaunch = val;
-                      provider.updateSettings(s);
-                    },
+                    onChanged: (val) => _updateSettings(
+                      (settings) => settings.autoStartCoreOnLaunch = val,
+                    ),
                   ),
                 ],
               ),

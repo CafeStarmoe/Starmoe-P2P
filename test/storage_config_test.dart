@@ -61,6 +61,72 @@ void main() {
         NetworkConfig.fromToml(toml).networkName, configs.single.networkName);
   });
 
+  test('stores user settings as JSON in the data directory', () async {
+    final settings = AppSettings(username: 'LocalUser');
+    await StorageService.saveSettings(
+      settings,
+      dataDirectory: configDirectory,
+    );
+
+    final settingsFile = File(p.join(configDirectory.path, 'settings.json'));
+    expect(await settingsFile.exists(), isTrue);
+    expect(
+        await settingsFile.readAsString(), contains('"username": "LocalUser"'));
+    expect(
+      (await StorageService.loadSettings(dataDirectory: configDirectory))
+          .username,
+      'LocalUser',
+    );
+    expect(
+      (await SharedPreferences.getInstance()).getString('easytier_settings'),
+      isNull,
+    );
+  });
+
+  test('migrates legacy preferences out of SharedPreferences', () async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      'easytier_settings',
+      jsonEncode(AppSettings(username: 'MigratedUser').toJson()),
+    );
+
+    final settings = await StorageService.loadSettings(
+      dataDirectory: configDirectory,
+    );
+
+    expect(settings.username, 'MigratedUser');
+    expect(
+      await File(p.join(configDirectory.path, 'settings.json')).exists(),
+      isTrue,
+    );
+    expect(prefs.getString('easytier_settings'), isNull);
+  });
+
+  test('migrates legacy config TOML into the data config directory', () async {
+    final legacyDirectory =
+        await Directory.systemTemp.createTemp('easytier-legacy-config-');
+    addTearDown(() => legacyDirectory.delete(recursive: true));
+    final legacyFile = File(p.join(legacyDirectory.path, 'default.toml'));
+    final config = NetworkConfig.createDefault(
+      id: 'default',
+      name: '旧目录配置',
+    );
+    await legacyFile.writeAsString(config.toToml());
+
+    final loaded = await StorageService.loadConfigs(
+      configDirectory: configDirectory,
+      dataDirectory: configDirectory,
+      legacyConfigDirectory: legacyDirectory,
+    );
+
+    expect(loaded.single.profileName, '旧目录配置');
+    expect(await legacyFile.exists(), isFalse);
+    expect(
+      await File(p.join(configDirectory.path, 'default.toml')).exists(),
+      isTrue,
+    );
+  });
+
   test('default TOML is accepted by the bundled EasyTier core', () async {
     final core = File(
       p.join(Directory.current.path, 'bin', 'easytier-core.exe'),
@@ -73,7 +139,13 @@ void main() {
 
     final result = await Process.run(
       core.path,
-      ['--check-config', '--config-file', configFile.path],
+      [
+        '--check-config',
+        '--config-file',
+        configFile.path,
+        '--dhcp',
+        'true',
+      ],
     );
 
     expect(
@@ -145,10 +217,12 @@ void main() {
     );
     await StorageService.saveSettings(
       AppSettings(selectedConfigId: previouslySelected.id),
+      dataDirectory: configDirectory,
     );
 
     final migrated = await StorageService.loadConfigs(
       configDirectory: configDirectory,
+      dataDirectory: configDirectory,
     );
 
     expect(migrated.first.id, 'cfg_selected');

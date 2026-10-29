@@ -16,7 +16,6 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.textContaining('EasyTier'), findsWidgets);
+    expect(find.text('Starmoe'), findsOneWidget);
   });
 }
-

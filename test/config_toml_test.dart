@@ -19,6 +19,7 @@ void main() {
     );
 
     final toml = config.toToml();
+    expect(toml, contains('dhcp = false'));
     expect(toml, contains("instance_name = '测试网络'"));
     expect(toml, contains('[network_identity]'));
     expect(toml, contains("network_name = 'office_mesh'"));

@@ -8,22 +8,33 @@ class PeerCard extends StatelessWidget {
   const PeerCard({super.key, required this.peer});
 
   String _formatBytes(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    if (bytes < 1024) {
+      return '$bytes B';
+    }
+    if (bytes < 1024 * 1024) {
+      return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    }
+    if (bytes < 1024 * 1024 * 1024) {
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    }
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
   }
 
   Color _getLatencyColor(int latency) {
-    if (latency <= 30) return Colors.green;
-    if (latency <= 80) return Colors.amber;
+    if (latency <= 30) {
+      return Colors.green;
+    }
+    if (latency <= 80) {
+      return Colors.amber;
+    }
     return Colors.redAccent;
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isP2P = peer.tunnelType.contains('P2P') || peer.tunnelType.contains('Direct');
+    final isP2P =
+        peer.tunnelType.contains('P2P') || peer.tunnelType.contains('Direct');
 
     return Card(
       elevation: 0,
@@ -79,12 +90,17 @@ class PeerCard extends StatelessWidget {
                           ],
                           const SizedBox(width: 8),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
-                              color: isP2P ? Colors.green.withAlpha(20) : Colors.orange.withAlpha(20),
+                              color: isP2P
+                                  ? Colors.green.withAlpha(20)
+                                  : Colors.orange.withAlpha(20),
                               borderRadius: BorderRadius.circular(4),
                               border: Border.all(
-                                color: isP2P ? Colors.green.withAlpha(80) : Colors.orange.withAlpha(80),
+                                color: isP2P
+                                    ? Colors.green.withAlpha(80)
+                                    : Colors.orange.withAlpha(80),
                               ),
                             ),
                             child: Text(
@@ -92,7 +108,9 @@ class PeerCard extends StatelessWidget {
                               style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600,
-                                color: isP2P ? Colors.green.shade700 : Colors.orange.shade800,
+                                color: isP2P
+                                    ? Colors.green.shade700
+                                    : Colors.orange.shade800,
                               ),
                             ),
                           ),
@@ -102,28 +120,33 @@ class PeerCard extends StatelessWidget {
                       Row(
                         children: [
                           Text(
-                            peer.ipv4,
+                            peer.ipv4.isEmpty ? '未分配 IP' : peer.ipv4,
                             style: TextStyle(
                               fontFamily: 'monospace',
-                              color: theme.colorScheme.primary,
+                              color: peer.ipv4.isEmpty
+                                  ? theme.colorScheme.outline
+                                  : theme.colorScheme.primary,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
-                          IconButton(
-                            icon: const Icon(Icons.copy, size: 14),
-                            visualDensity: VisualDensity.compact,
-                            padding: EdgeInsets.zero,
-                            tooltip: '复制 IP',
-                            onPressed: () {
-                              Clipboard.setData(ClipboardData(text: peer.ipv4));
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('已复制 IP: ${peer.ipv4}'),
-                                  duration: const Duration(seconds: 1),
-                                ),
-                              );
-                            },
-                          ),
+                          if (peer.ipv4.isNotEmpty)
+                            IconButton(
+                              icon: const Icon(Icons.copy, size: 14),
+                              visualDensity: VisualDensity.compact,
+                              padding: EdgeInsets.zero,
+                              tooltip: '复制 IP',
+                              onPressed: () {
+                                Clipboard.setData(
+                                  ClipboardData(text: peer.ipv4),
+                                );
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('已复制 IP: ${peer.ipv4}'),
+                                    duration: const Duration(seconds: 1),
+                                  ),
+                                );
+                              },
+                            ),
                         ],
                       ),
                     ],
@@ -134,7 +157,8 @@ class PeerCard extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.speed, size: 16, color: _getLatencyColor(peer.latencyMs)),
+                        Icon(Icons.speed,
+                            size: 16, color: _getLatencyColor(peer.latencyMs)),
                         const SizedBox(width: 4),
                         Text(
                           '${peer.latencyMs} ms',
@@ -164,7 +188,8 @@ class PeerCard extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.arrow_downward, size: 14, color: Colors.blue),
+                    const Icon(Icons.arrow_downward,
+                        size: 14, color: Colors.blue),
                     const SizedBox(width: 4),
                     Text(
                       '下载: ${_formatBytes(peer.rxBytes)}',
@@ -174,7 +199,8 @@ class PeerCard extends StatelessWidget {
                 ),
                 Row(
                   children: [
-                    const Icon(Icons.arrow_upward, size: 14, color: Colors.purple),
+                    const Icon(Icons.arrow_upward,
+                        size: 14, color: Colors.purple),
                     const SizedBox(width: 4),
                     Text(
                       '上传: ${_formatBytes(peer.txBytes)}',
@@ -182,13 +208,14 @@ class PeerCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                Text(
-                  'ID: ${peer.peerId}',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.outline,
-                    fontFamily: 'monospace',
+                if (peer.peerId.isNotEmpty)
+                  Text(
+                    'ID: ${peer.peerId}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.outline,
+                      fontFamily: 'monospace',
+                    ),
                   ),
-                ),
               ],
             ),
           ],

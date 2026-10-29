@@ -75,6 +75,13 @@ class EasyTierProcessService {
             .where((arg) => arg.isNotEmpty),
       );
     }
+    args.addAll([
+      '--dhcp',
+      config.useDhcp ? 'true' : 'false',
+    ]);
+    if (!config.useDhcp && config.ipv4.isNotEmpty) {
+      args.addAll(['--ipv4', config.ipv4]);
+    }
     // 如果配置了自定义用户名，通过 --hostname 注入标识该节点
     if (username != null &&
         username.trim().isNotEmpty &&
@@ -178,12 +185,12 @@ class EasyTierProcessService {
   /// 从日志输出中自动解析虚拟 IP
   void _parseLogForStatus(String line, void Function(String ip) onIpDetected) {
     final ipRegex = RegExp(
-        r'(?:ipv4|ip|assigned)[\s:=]+((?:10|172|192)\.\d{1,3}\.\d{1,3}\.\d{1,3})',
+        r'(?:ipv4|ip|assigned)[\s:=]+((?:10|172|192)\.\d{1,3}\.\d{1,3}\.\d{1,3}(?:/\d{1,2})?)',
         caseSensitive: false);
     final match = ipRegex.firstMatch(line);
     if (match != null && match.groupCount >= 1) {
-      final ip = match.group(1);
-      if (ip != null && ip.isNotEmpty) {
+      final ip = _normalizeIpv4Address(match.group(1)!);
+      if (ip != null) {
         onIpDetected(ip);
       }
     }
@@ -201,13 +208,13 @@ class EasyTierProcessService {
 
       final result = await Process.run(
         cliPath,
-        ['--rpc-portal', '127.0.0.1:$rpcPort', 'peer'],
+        ['--rpc-portal', '127.0.0.1:$rpcPort', 'peer', 'list'],
         workingDirectory: workDir,
-        runInShell: true,
+        runInShell: false,
       ).timeout(const Duration(seconds: 2));
 
       if (result.exitCode == 0) {
-        return _parseCliPeerOutput(result.stdout.toString());
+        return parsePeerOutput(result.stdout.toString());
       }
     } catch (_) {
       // 忽略无法连接 cli 的异常，进入缺省处理
@@ -216,23 +223,109 @@ class EasyTierProcessService {
     return [];
   }
 
-  List<PeerInfo> _parseCliPeerOutput(String output) {
-    final List<PeerInfo> peers = [];
-    final lines = const LineSplitter().convert(output);
-    for (final line in lines) {
-      final parts =
-          line.split(RegExp(r'\s+')).where((e) => e.isNotEmpty).toList();
-      if (parts.length >= 4 && parts[0] != 'peer_id') {
-        peers.add(PeerInfo(
-          peerId: parts[0],
-          ipv4: parts.length > 1 ? parts[1] : '10.144.144.x',
-          tunnelType:
-              parts.any((e) => e.contains('p2p')) ? 'P2P Direct' : 'Relay',
-          latencyMs: 15,
-        ));
+  List<PeerInfo> parsePeerOutput(String output) {
+    final peers = <PeerInfo>[];
+    List<String>? headers;
+
+    for (final line in const LineSplitter().convert(output)) {
+      if (!line.contains('|')) continue;
+      final cells =
+          line.split('|').map((cell) => cell.trim()).toList(growable: true);
+      if (cells.isNotEmpty && cells.first.isEmpty) cells.removeAt(0);
+      if (cells.isNotEmpty && cells.last.isEmpty) cells.removeLast();
+      if (cells.isEmpty ||
+          cells.every((cell) => RegExp(r'^[-+=:]+$').hasMatch(cell))) {
+        continue;
       }
+
+      final normalized = cells.map((cell) => cell.toLowerCase()).toList();
+      if (normalized.contains('ipv4') &&
+          normalized.contains('hostname') &&
+          normalized.contains('cost')) {
+        headers = normalized;
+        continue;
+      }
+      if (headers == null || cells.length < headers.length) continue;
+
+      String value(String column) {
+        final index = headers!.indexOf(column);
+        return index >= 0 ? cells[index] : '';
+      }
+
+      final ipv4 = value('ipv4');
+      final cost = value('cost');
+      if (cost.toLowerCase() == 'local') {
+        _virtualIp = _normalizeIpv4Address(ipv4) ?? '';
+        continue;
+      }
+
+      final hostname = value('hostname');
+      if (hostname.isEmpty) continue;
+
+      final rawTunnelType = cost.toLowerCase();
+      final tunnelType =
+          rawTunnelType.contains('p2p') || rawTunnelType.contains('direct')
+              ? 'P2P Direct'
+              : rawTunnelType.contains('relay')
+                  ? 'Relay'
+                  : '未知';
+      final tunnelIndex = headers.indexWhere(
+        (header) => header == 'tunnel' || header == 'protocol',
+      );
+      final tunnel = tunnelIndex >= 0 ? cells[tunnelIndex] : '';
+
+      peers.add(
+        PeerInfo(
+          peerId: value('peer_id'),
+          ipv4: _normalizeIpv4Address(ipv4) ?? '',
+          hostname: hostname,
+          tunnelType: tunnelType,
+          protocol: tunnel.isEmpty ? '未知' : tunnel,
+          latencyMs: double.tryParse(value('lat(ms)'))?.round() ?? 0,
+          rxBytes: _parseTrafficBytes(value('rx')),
+          txBytes: _parseTrafficBytes(value('tx')),
+        ),
+      );
     }
     return peers;
+  }
+
+  String? _normalizeIpv4Address(String value) {
+    final match = RegExp(r'^(\d{1,3}(?:\.\d{1,3}){3})(?:/(\d{1,2}))?$')
+        .firstMatch(value.trim());
+    if (match == null) return null;
+    final parts = match.group(1)!.split('.');
+    final prefix = match.group(2);
+    if (prefix != null) {
+      final prefixLength = int.tryParse(prefix);
+      if (prefixLength == null || prefixLength > 32) return null;
+    }
+
+    final isValid = parts.every((part) {
+      final octet = int.tryParse(part);
+      return octet != null && octet >= 0 && octet <= 255;
+    });
+    if (!isValid) return null;
+
+    return parts.join('.');
+  }
+
+  int _parseTrafficBytes(String value) {
+    final match = RegExp(
+      r'^([\d.]+)\s*(B|kB|KB|MB|GB)?$',
+      caseSensitive: false,
+    ).firstMatch(value.trim());
+    if (match == null) return 0;
+    final amount = double.tryParse(match.group(1)!);
+    if (amount == null) return 0;
+    final unit = (match.group(2) ?? 'B').toLowerCase();
+    final multiplier = switch (unit) {
+      'kb' => 1000,
+      'mb' => 1000 * 1000,
+      'gb' => 1000 * 1000 * 1000,
+      _ => 1,
+    };
+    return (amount * multiplier).round();
   }
 
   void dispose() {

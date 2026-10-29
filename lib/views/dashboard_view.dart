@@ -59,8 +59,8 @@ class _DashboardViewState extends State<DashboardView> {
             children: [
               Text(
                 isFirstTime
-                    ? '设置一个你的联机游戏昵称，网络中的对等节点将直接看到你的昵称：'
-                    : '设置后，联机队友列表中将优先展示此昵称：',
+                    ? '设置您的用户名，网络中的对等节点将直接看到你的昵称：'
+                    : '设置后，节点列表中将优先展示此昵称：',
                 style: const TextStyle(fontSize: 13),
               ),
               const SizedBox(height: 16),
@@ -84,14 +84,23 @@ class _DashboardViewState extends State<DashboardView> {
               child: const Text('取消'),
             ),
           FilledButton(
-            onPressed: () {
+            onPressed: () async {
               final name = ctrl.text.trim();
               if (name.isNotEmpty) {
-                provider.updateUsername(name);
-                Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('用户名已设置为: $name')),
-                );
+                final messenger = ScaffoldMessenger.of(context);
+                try {
+                  await provider.updateUsername(name);
+                  if (!ctx.mounted) return;
+                  Navigator.pop(ctx);
+                  messenger.showSnackBar(
+                    SnackBar(content: Text('用户名已设置为: $name')),
+                  );
+                } catch (error) {
+                  if (!ctx.mounted) return;
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    SnackBar(content: Text('保存用户名失败: $error')),
+                  );
+                }
               }
             },
             child: Text(isFirstTime ? '进入软件' : '保存修改'),
@@ -154,7 +163,7 @@ class _DashboardViewState extends State<DashboardView> {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
-                '读取 config 文件夹中的 TOML 配置失败：${provider.configError}',
+                '读取应用 data 数据或 TOML 配置失败：${provider.configError}',
                 style: TextStyle(color: theme.colorScheme.onErrorContainer),
               ),
             ),

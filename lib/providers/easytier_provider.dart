@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math';
 import 'package:flutter/material.dart';
 import '../models/network_config.dart';
 import '../models/peer_info.dart';
@@ -20,6 +19,7 @@ class EasyTierProvider extends ChangeNotifier {
   bool _isInitialized = false;
   bool _isRunning = false;
   String? _configError;
+  String? _dataDirectoryPath;
   String? _configDirectoryPath;
   String _virtualIp = '';
   DateTime? _startedAt;
@@ -31,8 +31,10 @@ class EasyTierProvider extends ChangeNotifier {
 
   final List<String> _logs = [];
   List<PeerInfo> _peers = [];
-  Timer? _metricsTimer;
   Timer? _peerRefreshTimer;
+  DateTime? _lastTrafficSampleAt;
+  int _lastUploadedSample = 0;
+  int _lastDownloadedSample = 0;
 
   // 核心版本与更新状态
   String _currentCoreVersion = '';
@@ -52,6 +54,7 @@ class EasyTierProvider extends ChangeNotifier {
   AppSettings get settings => _settings;
   bool get isInitialized => _isInitialized;
   String? get configError => _configError;
+  String? get dataDirectoryPath => _dataDirectoryPath;
   String? get configDirectoryPath => _configDirectoryPath;
   bool get isConnecting => _isConnecting;
   bool get isRunning => _isRunning;
@@ -78,12 +81,17 @@ class EasyTierProvider extends ChangeNotifier {
   bool get hasUpdate => _versionInfo?.hasUpdate ?? false;
 
   Future<void> _init() async {
-    _settings = await StorageService.loadSettings();
     try {
+      final dataDirectory = await StorageService.getDataDirectory();
+      _dataDirectoryPath = dataDirectory.path;
+      _settings = await StorageService.loadSettings(
+        dataDirectory: dataDirectory,
+      );
       final configDirectory = await StorageService.getConfigDirectory();
       _configDirectoryPath = configDirectory.path;
       _configs = await StorageService.loadConfigs(
         configDirectory: configDirectory,
+        dataDirectory: dataDirectory,
       );
       if (_configs.isNotEmpty) {
         _currentConfig = _configs.firstWhere(
@@ -255,8 +263,8 @@ class EasyTierProvider extends ChangeNotifier {
 
   /// 更新应用偏好设置
   Future<void> updateSettings(AppSettings newSettings) async {
+    await StorageService.saveSettings(newSettings);
     _settings = newSettings;
-    await StorageService.saveSettings(_settings);
     await refreshCurrentVersion();
     notifyListeners();
   }
@@ -265,8 +273,10 @@ class EasyTierProvider extends ChangeNotifier {
 
   /// 更新自定义用户名
   Future<void> updateUsername(String newName) async {
-    _settings.username = newName.trim();
-    await StorageService.saveSettings(_settings);
+    final settings = AppSettings.fromJson(_settings.toJson())
+      ..username = newName.trim();
+    await StorageService.saveSettings(settings);
+    _settings = settings;
     _addLog('[用户] 用户名已更新为:「${_settings.username}」');
     notifyListeners();
   }
@@ -312,9 +322,7 @@ class EasyTierProvider extends ChangeNotifier {
     _isConnecting = false;
     if (success) {
       _isRunning = true;
-      _virtualIp = _currentConfig!.useDhcp
-          ? '10.144.144.2 (DHCP分配中)'
-          : _currentConfig!.ipv4;
+      _virtualIp = _processService.virtualIp;
       _startedAt = DateTime.now();
       _startMetrics();
     } else {
@@ -364,17 +372,9 @@ class EasyTierProvider extends ChangeNotifier {
 
   /// 启动流量与节点监控
   void _startMetrics() {
-    _metricsTimer?.cancel();
-    _metricsTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!_isRunning) return;
-      final random = Random();
-      _uploadSpeed = random.nextInt(1024 * 300);
-      _downloadSpeed = random.nextInt(1024 * 800);
-      _totalUploaded += _uploadSpeed;
-      _totalDownloaded += _downloadSpeed;
-      notifyListeners();
-    });
-
+    _lastTrafficSampleAt = null;
+    _lastUploadedSample = 0;
+    _lastDownloadedSample = 0;
     _refreshPeers();
     _peerRefreshTimer?.cancel();
     _peerRefreshTimer =
@@ -383,10 +383,14 @@ class EasyTierProvider extends ChangeNotifier {
 
   /// 停止监控
   void _stopMetrics() {
-    _metricsTimer?.cancel();
     _peerRefreshTimer?.cancel();
     _uploadSpeed = 0;
     _downloadSpeed = 0;
+    _totalUploaded = 0;
+    _totalDownloaded = 0;
+    _lastTrafficSampleAt = null;
+    _lastUploadedSample = 0;
+    _lastDownloadedSample = 0;
     _peers = [];
   }
 
@@ -396,53 +400,45 @@ class EasyTierProvider extends ChangeNotifier {
     final livePeers = await _processService.fetchPeers(
       rpcPort: _currentConfig?.rpcPort ?? 15888,
     );
-
-    if (livePeers.isNotEmpty) {
-      _peers = livePeers;
+    if (!_isRunning) return;
+    _peers = livePeers;
+    final uploaded = livePeers.fold<int>(
+      0,
+      (total, peer) => total + peer.txBytes,
+    );
+    final downloaded = livePeers.fold<int>(
+      0,
+      (total, peer) => total + peer.rxBytes,
+    );
+    final sampledAt = DateTime.now();
+    final previousSampleAt = _lastTrafficSampleAt;
+    if (previousSampleAt != null) {
+      final elapsedSeconds =
+          sampledAt.difference(previousSampleAt).inMicroseconds / 1000000;
+      if (elapsedSeconds > 0) {
+        _uploadSpeed = uploaded >= _lastUploadedSample
+            ? ((uploaded - _lastUploadedSample) / elapsedSeconds).round()
+            : 0;
+        _downloadSpeed = downloaded >= _lastDownloadedSample
+            ? ((downloaded - _lastDownloadedSample) / elapsedSeconds).round()
+            : 0;
+      }
     } else {
-      _peers = [
-        const PeerInfo(
-          peerId: 'p2p-node-8891',
-          ipv4: '10.144.144.1',
-          hostname: 'DESKTOP-89F12A',
-          customUsername: '队友·星河',
-          tunnelType: 'P2P Direct',
-          protocol: 'UDP',
-          latencyMs: 16,
-          rxBytes: 15482000,
-          txBytes: 8940000,
-        ),
-        const PeerInfo(
-          peerId: 'p2p-node-3021',
-          ipv4: '10.144.144.3',
-          hostname: 'UBUNTU-SERVER',
-          customUsername: '开黑联机服',
-          tunnelType: 'P2P Direct',
-          protocol: 'WireGuard',
-          latencyMs: 24,
-          rxBytes: 42100000,
-          txBytes: 3120000,
-        ),
-        const PeerInfo(
-          peerId: 'relay-srv-01',
-          ipv4: '10.144.144.254',
-          hostname: 'public.easytier.cn',
-          customUsername: '官方公共中继',
-          tunnelType: 'Relay',
-          protocol: 'TCP',
-          latencyMs: 48,
-          rxBytes: 3200000,
-          txBytes: 1100000,
-        ),
-      ];
+      _uploadSpeed = 0;
+      _downloadSpeed = 0;
     }
+    _totalUploaded = uploaded;
+    _totalDownloaded = downloaded;
+    _lastUploadedSample = uploaded;
+    _lastDownloadedSample = downloaded;
+    _lastTrafficSampleAt = sampledAt;
+    _virtualIp = _processService.virtualIp;
     notifyListeners();
   }
 
   @override
   void dispose() {
     _processService.dispose();
-    _metricsTimer?.cancel();
     _peerRefreshTimer?.cancel();
     super.dispose();
   }
