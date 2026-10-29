@@ -1,6 +1,4 @@
-# --------------------------------------------------
-# Flutter & Dart 相关产物与缓存
-# --------------------------------------------------
+
 .dart_tool/
 .flutter-plugins
 .flutter-plugins-dependencies
@@ -11,13 +9,9 @@
 **/doc/api/
 .widget_preview/
 
-# Symbol 调试与代码覆盖
 coverage/
 *.info
 
-# --------------------------------------------------
-# Windows 原生平台构建与临时文件
-# --------------------------------------------------
 windows/flutter/ephemeral/
 windows/x64/
 windows/x86/
@@ -32,31 +26,23 @@ windows/*.[Cc]ache
 *.idb
 *.ilk
 
-# --------------------------------------------------
-# IDE 与编辑器配置文件
-# --------------------------------------------------
-# Visual Studio Code
+
 .vscode/*
 !.vscode/launch.json
 !.vscode/tasks.json
 !.vscode/settings.json
 
-# Android Studio / IntelliJ IDEA
 .idea/
 *.iml
 *.ipr
 *.iws
 
-# 其他编辑器
 .atom/
 .history/
 .svn/
 *.swp
 *.swo
 
-# --------------------------------------------------
-# 系统缓存与临时文件
-# --------------------------------------------------
 .DS_Store
 .DS_Store?
 ._*
@@ -66,38 +52,6 @@ ehthumbs.db
 Thumbs.db
 [Dd]esktop.ini
 
-# 日志与备份
 *.log
 *.tmp
 *.bak
-
-# Android Studio / IntelliJ IDEA
-.idea/
-*.iml
-*.ipr
-*.iws
-
-# 其他编辑器
-.atom/
-.history/
-.svn/
-*.swp
-*.swo
-
-# --------------------------------------------------
-# 系统缓存与临时文件
-# --------------------------------------------------
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-[Dd]esktop.ini
-
-# 日志与备份
-*.log
-*.tmp
-*.bak
-

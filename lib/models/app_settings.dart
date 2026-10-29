@@ -7,6 +7,7 @@ class AppSettings {
   bool autoStartCoreOnLaunch;
   bool autoStartOnBoot;
   String selectedConfigId;
+  String username; // 用户名
 
   AppSettings({
     this.coreExecutablePath = 'builtin',
@@ -14,6 +15,7 @@ class AppSettings {
     this.autoStartCoreOnLaunch = false,
     this.autoStartOnBoot = false,
     this.selectedConfigId = '',
+    this.username = '',
   });
 
   Map<String, dynamic> toJson() => {
@@ -22,6 +24,7 @@ class AppSettings {
         'autoStartCoreOnLaunch': autoStartCoreOnLaunch,
         'autoStartOnBoot': autoStartOnBoot,
         'selectedConfigId': selectedConfigId,
+        'username': username,
       };
 
   factory AppSettings.fromJson(Map<String, dynamic> json) {
@@ -37,7 +40,7 @@ class AppSettings {
       autoStartCoreOnLaunch: json['autoStartCoreOnLaunch'] as bool? ?? false,
       autoStartOnBoot: json['autoStartOnBoot'] as bool? ?? false,
       selectedConfigId: json['selectedConfigId'] as String? ?? '',
+      username: json['username'] as String? ?? '',
     );
   }
 }
-

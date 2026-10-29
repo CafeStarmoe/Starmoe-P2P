@@ -44,7 +44,7 @@ class PeerCard extends StatelessWidget {
                       ? Colors.teal.withAlpha(30)
                       : Colors.orange.withAlpha(30),
                   child: Icon(
-                    isP2P ? Icons.devices : Icons.router,
+                    isP2P ? Icons.person_outline : Icons.router,
                     color: isP2P ? Colors.teal : Colors.orange,
                     size: 22,
                   ),
@@ -58,13 +58,25 @@ class PeerCard extends StatelessWidget {
                         children: [
                           Flexible(
                             child: Text(
-                              peer.hostname,
+                              peer.displayName,
                               style: theme.textTheme.titleMedium?.copyWith(
                                 fontWeight: FontWeight.bold,
                               ),
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
+                          if (peer.customUsername != null &&
+                              peer.customUsername!.isNotEmpty &&
+                              peer.hostname.isNotEmpty &&
+                              peer.hostname != peer.customUsername) ...[
+                            const SizedBox(width: 6),
+                            Text(
+                              '(${peer.hostname})',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.outline,
+                              ),
+                            ),
+                          ],
                           const SizedBox(width: 8),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -185,4 +197,3 @@ class PeerCard extends StatelessWidget {
     );
   }
 }
-

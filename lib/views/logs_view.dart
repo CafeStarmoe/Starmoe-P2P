@@ -56,8 +56,9 @@ class _LogsViewState extends State<LogsView> {
           Row(
             children: [
               Text(
-                '运行控制台日志',
-                style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+                'Easytier-core 日志',
+                style: theme.textTheme.headlineSmall
+                    ?.copyWith(fontWeight: FontWeight.bold),
               ),
               const Spacer(),
               Row(
@@ -76,9 +77,11 @@ class _LogsViewState extends State<LogsView> {
                 onPressed: provider.logs.isEmpty
                     ? null
                     : () {
-                        Clipboard.setData(ClipboardData(text: provider.logs.join('\n')));
+                        Clipboard.setData(
+                            ClipboardData(text: provider.logs.join('\n')));
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('已复制所有日志到剪贴板')),
+                          const SnackBar(
+                              content: Text('已复制所有Easytier-core 日志到剪贴板')),
                         );
                       },
               ),
@@ -86,7 +89,8 @@ class _LogsViewState extends State<LogsView> {
               OutlinedButton.icon(
                 icon: const Icon(Icons.delete_outline, size: 16),
                 label: const Text('清空'),
-                onPressed: provider.logs.isEmpty ? null : () => provider.clearLogs(),
+                onPressed:
+                    provider.logs.isEmpty ? null : () => provider.clearLogs(),
               ),
             ],
           ),
@@ -118,7 +122,7 @@ class _LogsViewState extends State<LogsView> {
               child: logs.isEmpty
                   ? const Center(
                       child: Text(
-                        '暂无日志记录。启动组网后，核心进程的运行日志将实时在此输出。',
+                        '暂无Easytier-core 日志。开启服务后，核心服务进程的运行日志将实时在此输出。',
                         style: TextStyle(color: Colors.grey),
                       ),
                     )
@@ -128,11 +132,16 @@ class _LogsViewState extends State<LogsView> {
                       itemBuilder: (context, index) {
                         final line = logs[index];
                         Color textColor = const Color(0xFFDDDDDD);
-                        if (line.contains('[ERR]') || line.contains('ERROR') || line.contains('错误') || line.contains('失败')) {
+                        if (line.contains('[ERR]') ||
+                            line.contains('ERROR') ||
+                            line.contains('错误') ||
+                            line.contains('失败')) {
                           textColor = const Color(0xFFFF6B6B);
-                        } else if (line.contains('[启动]') || line.contains('[退出]')) {
+                        } else if (line.contains('[启动]') ||
+                            line.contains('[退出]')) {
                           textColor = const Color(0xFF4DABF7);
-                        } else if (line.contains('WARN') || line.contains('警告')) {
+                        } else if (line.contains('WARN') ||
+                            line.contains('警告')) {
                           textColor = const Color(0xFFFCC419);
                         }
 
@@ -157,4 +166,3 @@ class _LogsViewState extends State<LogsView> {
     );
   }
 }
-

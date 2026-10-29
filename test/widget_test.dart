@@ -5,13 +5,18 @@ import 'package:easytier_gui/providers/easytier_provider.dart';
 
 void main() {
   testWidgets('App smoke test', (WidgetTester tester) async {
+    final provider = EasyTierProvider();
+    provider.settings.username = 'TestPlayer';
+
     await tester.pumpWidget(
-      ChangeNotifierProvider(
-        create: (_) => EasyTierProvider(),
+      ChangeNotifierProvider.value(
+        value: provider,
         child: const EasyTierApp(),
       ),
     );
+    await tester.pump();
 
-    expect(find.text('EasyTier'), findsWidgets);
+    expect(find.textContaining('EasyTier'), findsWidgets);
   });
 }
+

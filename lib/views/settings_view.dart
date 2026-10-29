@@ -53,7 +53,8 @@ class _SettingsViewState extends State<SettingsView> {
               ? '已成功加载内置 EasyTier 运行库 (就绪)'
               : '自定义 EasyTier 核心可用 (就绪)';
         } else {
-          _coreStatusText = '未检测到程序，请确认 .\\bin 目录下包含 easytier-core.exe 或指定自定义路径';
+          _coreStatusText =
+              '未检测到程序，请确认 .\\bin 目录下包含 easytier-core.exe 或指定自定义路径';
         }
       });
     }
@@ -131,8 +132,9 @@ class _SettingsViewState extends State<SettingsView> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '系统与客户端设置',
-            style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+            '客户端设置',
+            style: theme.textTheme.headlineSmall
+                ?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 24),
 
@@ -142,7 +144,8 @@ class _SettingsViewState extends State<SettingsView> {
             color: theme.colorScheme.surfaceContainerHighest.withAlpha(40),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
-              side: BorderSide(color: theme.colorScheme.outlineVariant.withAlpha(50)),
+              side: BorderSide(
+                  color: theme.colorScheme.outlineVariant.withAlpha(50)),
             ),
             child: Padding(
               padding: const EdgeInsets.all(20),
@@ -153,16 +156,19 @@ class _SettingsViewState extends State<SettingsView> {
                     children: [
                       Text(
                         'EasyTier 核心运行库',
-                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                        style: theme.textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(width: 10),
                       if (provider.currentCoreVersion.isNotEmpty)
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
                           decoration: BoxDecoration(
                             color: theme.colorScheme.primary.withAlpha(20),
                             borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: theme.colorScheme.primary.withAlpha(60)),
+                            border: Border.all(
+                                color: theme.colorScheme.primary.withAlpha(60)),
                           ),
                           child: Text(
                             'v${provider.currentCoreVersion}',
@@ -193,7 +199,8 @@ class _SettingsViewState extends State<SettingsView> {
                   const SizedBox(height: 8),
                   Text(
                     '本项目已将 EasyTier 运行库（包含 easytier-core、wintun.dll、Packet.dll 等）内置于 .\\bin 目录中。',
-                    style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.outline),
+                    style: theme.textTheme.bodyMedium
+                        ?.copyWith(color: theme.colorScheme.outline),
                   ),
 
                   // 发现新版本横幅
@@ -204,11 +211,13 @@ class _SettingsViewState extends State<SettingsView> {
                       decoration: BoxDecoration(
                         color: Colors.amber.withAlpha(25),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.amber.shade700.withAlpha(80)),
+                        border: Border.all(
+                            color: Colors.amber.shade700.withAlpha(80)),
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.new_releases, color: Colors.amber.shade800, size: 24),
+                          Icon(Icons.new_releases,
+                              color: Colors.amber.shade800, size: 24),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Column(
@@ -224,7 +233,9 @@ class _SettingsViewState extends State<SettingsView> {
                                 const SizedBox(height: 2),
                                 Text(
                                   '来自官方仓库 EasyTier/EasyTier，点击即可自动下载并替换内置库',
-                                  style: TextStyle(fontSize: 12, color: Colors.amber.shade900),
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.amber.shade900),
                                 ),
                               ],
                             ),
@@ -236,7 +247,8 @@ class _SettingsViewState extends State<SettingsView> {
                             ),
                             icon: const Icon(Icons.upgrade, size: 18),
                             label: const Text('立即更新'),
-                            onPressed: () => UpdateDialog.show(context, provider.versionInfo!),
+                            onPressed: () => UpdateDialog.show(
+                                context, provider.versionInfo!),
                           ),
                         ],
                       ),
@@ -283,28 +295,40 @@ class _SettingsViewState extends State<SettingsView> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: theme.colorScheme.surfaceContainerHighest.withAlpha(60),
+                      color: theme.colorScheme.surfaceContainerHighest
+                          .withAlpha(60),
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: theme.colorScheme.outlineVariant.withAlpha(40)),
+                      border: Border.all(
+                          color:
+                              theme.colorScheme.outlineVariant.withAlpha(40)),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
                           children: [
-                            const Text('当前运行程序与版本：', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                            const Text('当前运行程序与版本：',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold, fontSize: 13)),
                             const Spacer(),
                             FilledButton.tonalIcon(
-                              style: FilledButton.styleFrom(visualDensity: VisualDensity.compact),
+                              style: FilledButton.styleFrom(
+                                  visualDensity: VisualDensity.compact),
                               icon: provider.isCheckingUpdate
                                   ? const SizedBox(
                                       width: 14,
                                       height: 14,
-                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2),
                                     )
-                                  : const Icon(Icons.system_update_alt, size: 16),
-                              label: Text(provider.isCheckingUpdate ? '正在检查...' : '检查更新'),
-                              onPressed: provider.isCheckingUpdate ? null : _onCheckUpdatePressed,
+                                  : const Icon(Icons.system_update_alt,
+                                      size: 16),
+                              label: Text(provider.isCheckingUpdate
+                                  ? '正在检查...'
+                                  : '检查更新'),
+                              onPressed: provider.isCheckingUpdate
+                                  ? null
+                                  : _onCheckUpdatePressed,
                             ),
                             const SizedBox(width: 8),
                             IconButton(
@@ -312,18 +336,23 @@ class _SettingsViewState extends State<SettingsView> {
                                   ? const SizedBox(
                                       width: 14,
                                       height: 14,
-                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2),
                                     )
                                   : const Icon(Icons.refresh, size: 16),
                               tooltip: '重新探测本地文件',
                               visualDensity: VisualDensity.compact,
-                              onPressed: () => _checkCore(_isUsingBuiltin ? 'builtin' : _corePathCtrl.text),
+                              onPressed: () => _checkCore(_isUsingBuiltin
+                                  ? 'builtin'
+                                  : _corePathCtrl.text),
                             ),
                           ],
                         ),
                         const SizedBox(height: 6),
                         SelectableText(
-                          _resolvedPathText.isEmpty ? '探测中...' : _resolvedPathText,
+                          _resolvedPathText.isEmpty
+                              ? '探测中...'
+                              : _resolvedPathText,
                           style: TextStyle(
                             fontFamily: 'monospace',
                             fontSize: 12,
@@ -337,9 +366,13 @@ class _SettingsViewState extends State<SettingsView> {
                   Row(
                     children: [
                       Icon(
-                        _coreStatusText.contains('就绪') ? Icons.check_circle : Icons.warning_amber_rounded,
+                        _coreStatusText.contains('就绪')
+                            ? Icons.check_circle
+                            : Icons.warning_amber_rounded,
                         size: 16,
-                        color: _coreStatusText.contains('就绪') ? Colors.green : Colors.orange,
+                        color: _coreStatusText.contains('就绪')
+                            ? Colors.green
+                            : Colors.orange,
                       ),
                       const SizedBox(width: 6),
                       Expanded(
@@ -347,7 +380,9 @@ class _SettingsViewState extends State<SettingsView> {
                           _coreStatusText,
                           style: TextStyle(
                             fontSize: 13,
-                            color: _coreStatusText.contains('就绪') ? Colors.green : Colors.orange,
+                            color: _coreStatusText.contains('就绪')
+                                ? Colors.green
+                                : Colors.orange,
                           ),
                         ),
                       ),
@@ -366,14 +401,17 @@ class _SettingsViewState extends State<SettingsView> {
             color: theme.colorScheme.surfaceContainerHighest.withAlpha(40),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
-              side: BorderSide(color: theme.colorScheme.outlineVariant.withAlpha(50)),
+              side: BorderSide(
+                  color: theme.colorScheme.outlineVariant.withAlpha(50)),
             ),
             child: Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('个性化与启动行为', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                  Text('个性化与启动行为',
+                      style: theme.textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 12),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
@@ -381,8 +419,10 @@ class _SettingsViewState extends State<SettingsView> {
                     subtitle: const Text('切换明亮或暗黑模式'),
                     trailing: SegmentedButton<ThemeMode>(
                       segments: const [
-                        ButtonSegment(value: ThemeMode.system, label: Text('系统')),
-                        ButtonSegment(value: ThemeMode.light, label: Text('浅色')),
+                        ButtonSegment(
+                            value: ThemeMode.system, label: Text('系统')),
+                        ButtonSegment(
+                            value: ThemeMode.light, label: Text('浅色')),
                         ButtonSegment(value: ThemeMode.dark, label: Text('深色')),
                       ],
                       selected: {settings.themeMode},
@@ -395,8 +435,8 @@ class _SettingsViewState extends State<SettingsView> {
                   const Divider(),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('客户端启动时自动组网'),
-                    subtitle: const Text('打开本客户端后立即连接当前选中的网络'),
+                    title: const Text('客户端启动时自动启动服务'),
+                    subtitle: const Text('打开客户端后立即按照上次配置文件启动Easytier服务'),
                     value: settings.autoStartCoreOnLaunch,
                     onChanged: (val) {
                       final s = settings..autoStartCoreOnLaunch = val;
@@ -416,20 +456,25 @@ class _SettingsViewState extends State<SettingsView> {
             color: theme.colorScheme.surfaceContainerHighest.withAlpha(40),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
-              side: BorderSide(color: theme.colorScheme.outlineVariant.withAlpha(50)),
+              side: BorderSide(
+                  color: theme.colorScheme.outlineVariant.withAlpha(50)),
             ),
             child: Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('关于 EasyTier', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                  Text('关于 EasyTier',
+                      style: theme.textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
-                  const Text('EasyTier 是一款基于 Rust 打造的简单、安全、去中心化的异地组网工具，全链路零拷贝与智能 P2P 穿透。'),
+                  const Text(
+                      'EasyTier 是一款基于 Rust 打造的简单、安全、去中心化的异地组网工具，全链路零拷贝与智能 P2P 穿透。'),
                   const SizedBox(height: 16),
                   const Row(
                     children: [
-                      Text('官网与使用指南: ', style: TextStyle(fontWeight: FontWeight.bold)),
+                      Text('官网与使用指南: ',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
                       SelectableText(
                         'https://easytier.cn/guide/introduction.html',
                         style: TextStyle(color: Colors.blue),
@@ -439,7 +484,8 @@ class _SettingsViewState extends State<SettingsView> {
                   const SizedBox(height: 8),
                   const Row(
                     children: [
-                      Text('GitHub 官方仓库: ', style: TextStyle(fontWeight: FontWeight.bold)),
+                      Text('GitHub 官方仓库: ',
+                          style: TextStyle(fontWeight: FontWeight.bold)),
                       SelectableText(
                         'https://github.com/EasyTier/EasyTier',
                         style: TextStyle(color: Colors.blue),

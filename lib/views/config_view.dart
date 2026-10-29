@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -66,11 +68,8 @@ class _ConfigViewState extends State<ConfigView> {
     });
   }
 
-  void _saveCurrentConfig() {
-    if (!_formKey.currentState!.validate()) return;
-
-    final provider = context.read<EasyTierProvider>();
-    final config = NetworkConfig(
+  NetworkConfig _buildCurrentConfig() {
+    return NetworkConfig(
       id: _currentEditingId ?? 'cfg_${DateTime.now().millisecondsSinceEpoch}',
       profileName: _profileNameCtrl.text.trim(),
       networkName: _networkNameCtrl.text.trim(),
@@ -84,10 +83,133 @@ class _ConfigViewState extends State<ConfigView> {
       listenPort: int.tryParse(_listenPortCtrl.text) ?? 11010,
       additionalArgs: _additionalArgsCtrl.text.trim(),
     );
+  }
+
+  void _saveCurrentConfig() {
+    if (!_formKey.currentState!.validate()) return;
+
+    final provider = context.read<EasyTierProvider>();
+    final config = _buildCurrentConfig();
 
     provider.saveConfig(config);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('配置 [${config.profileName}] 已保存！')),
+    );
+  }
+
+  /// 导入原版 config.yaml
+  Future<void> _importYamlConfig() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        dialogTitle: '选择 EasyTier 配置文件 (config.yaml / *.yml)',
+        type: FileType.custom,
+        allowedExtensions: ['yaml', 'yml', 'toml'],
+      );
+
+      if (result != null && result.files.single.path != null) {
+        final file = File(result.files.single.path!);
+        final content = await file.readAsString();
+        final fileName = result.files.single.name;
+
+        final newConfig = NetworkConfig.fromYaml(
+          content,
+          defaultName: fileName.replaceAll(RegExp(r'\.(yaml|yml|toml)$'), ''),
+        );
+
+        if (!mounted) return;
+        final provider = context.read<EasyTierProvider>();
+        await provider.saveConfig(newConfig);
+        _loadConfig(newConfig);
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('成功导入配置文件: $fileName')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('导入配置文件失败: $e')),
+      );
+    }
+  }
+
+  /// 导出当前配置为 config.yaml 文件
+  Future<void> _exportYamlConfig() async {
+    try {
+      final config = _buildCurrentConfig();
+      final yamlContent = config.toYaml();
+
+      final outputFile = await FilePicker.platform.saveFile(
+        dialogTitle: '导出为 EasyTier 配置文件',
+        fileName: 'config.yaml',
+        type: FileType.custom,
+        allowedExtensions: ['yaml', 'yml'],
+      );
+
+      if (outputFile != null) {
+        final file = File(outputFile);
+        await file.writeAsString(yamlContent);
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('已成功导出配置文件至: $outputFile')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('导出失败: $e')),
+      );
+    }
+  }
+
+  /// 弹窗预览与复制 YAML 配置
+  void _showYamlPreview() {
+    final config = _buildCurrentConfig();
+    final yaml = config.toYaml();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.description_outlined),
+            SizedBox(width: 8),
+            Text('原版 config.yaml 预览'),
+          ],
+        ),
+        content: SizedBox(
+          width: 520,
+          child: SingleChildScrollView(
+            child: SelectableText(
+              yaml,
+              style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton.icon(
+            icon: const Icon(Icons.download, size: 16),
+            label: const Text('保存为文件'),
+            onPressed: () {
+              Navigator.pop(ctx);
+              _exportYamlConfig();
+            },
+          ),
+          FilledButton.icon(
+            icon: const Icon(Icons.copy, size: 16),
+            label: const Text('复制配置文本'),
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: yaml));
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('已复制 config.yaml 内容到剪贴板')),
+              );
+            },
+          ),
+        ],
+      ),
     );
   }
 
@@ -113,7 +235,8 @@ class _ConfigViewState extends State<ConfigView> {
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
           FilledButton(
             onPressed: () {
               if (ctrl.text.trim().isNotEmpty) {
@@ -138,7 +261,7 @@ class _ConfigViewState extends State<ConfigView> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('将本地局域网段发布给虚拟组网中的其他节点使用，CIDR 格式：'),
+            const Text('将本地局域网段发布给房间中的其他对等节点使用，CIDR 格式：'),
             const SizedBox(height: 12),
             TextField(
               controller: ctrl,
@@ -150,7 +273,8 @@ class _ConfigViewState extends State<ConfigView> {
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
           FilledButton(
             onPressed: () {
               if (ctrl.text.trim().isNotEmpty) {
@@ -160,51 +284,6 @@ class _ConfigViewState extends State<ConfigView> {
             },
             child: const Text('添加'),
           ),
-        ],
-      ),
-    );
-  }
-
-  void _showTomlPreview() {
-    final config = NetworkConfig(
-      id: _currentEditingId ?? '',
-      profileName: _profileNameCtrl.text,
-      networkName: _networkNameCtrl.text,
-      networkSecret: _networkSecretCtrl.text,
-      useDhcp: _useDhcp,
-      ipv4: _ipv4Ctrl.text,
-      peers: _peers,
-      proxyNetworks: _proxyNetworks,
-      rpcPort: int.tryParse(_rpcPortCtrl.text) ?? 15888,
-    );
-    final toml = config.toToml();
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('TOML 配置文件预览'),
-        content: SizedBox(
-          width: 500,
-          child: SingleChildScrollView(
-            child: SelectableText(
-              toml,
-              style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
-            ),
-          ),
-        ),
-        actions: [
-          TextButton.icon(
-            icon: const Icon(Icons.copy),
-            label: const Text('复制配置'),
-            onPressed: () {
-              Clipboard.setData(ClipboardData(text: toml));
-              Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('已复制 TOML 配置到剪贴板')),
-              );
-            },
-          ),
-          FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('关闭')),
         ],
       ),
     );
@@ -232,23 +311,33 @@ class _ConfigViewState extends State<ConfigView> {
       children: [
         // 左侧：配置列表
         Container(
-          width: 260,
+          width: 270,
           decoration: BoxDecoration(
-            border: Border(right: BorderSide(color: theme.colorScheme.outlineVariant.withAlpha(50))),
+            border: Border(
+                right: BorderSide(
+                    color: theme.colorScheme.outlineVariant.withAlpha(50))),
           ),
           child: Column(
             children: [
               Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('网络配置库', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                    Text('Easytier 配置',
+                        style: theme.textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.bold)),
+                    const Spacer(),
+                    // IconButton(
+                    //   icon: const Icon(Icons.file_upload_outlined),
+                    //   tooltip: '导入 config.yaml 配置文件',
+                    //   onPressed: _importYamlConfig,
+                    // ),
                     IconButton(
                       icon: const Icon(Icons.add),
                       tooltip: '新建配置',
                       onPressed: () {
-                        final newCfg = NetworkConfig.createDefault(name: '新建网络_${provider.configs.length + 1}');
+                        final newCfg = NetworkConfig.createDefault(
+                            name: '新建_${provider.configs.length + 1}');
                         provider.saveConfig(newCfg);
                         _loadConfig(newCfg);
                       },
@@ -263,17 +352,21 @@ class _ConfigViewState extends State<ConfigView> {
                   itemBuilder: (ctx, i) {
                     final cfg = provider.configs[i];
                     final isSelected = cfg.id == _currentEditingId;
-                    final isRunningThis = provider.isRunning && provider.currentConfig?.id == cfg.id;
+                    final isRunningThis = provider.isRunning &&
+                        provider.currentConfig?.id == cfg.id;
 
                     return ListTile(
                       selected: isSelected,
-                      title: Text(cfg.profileName, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      title: Text(cfg.profileName,
+                          maxLines: 1, overflow: TextOverflow.ellipsis),
                       subtitle: Text(
-                        cfg.networkName.isEmpty ? '未配置网络名' : cfg.networkName,
+                        cfg.networkName.isEmpty ? '未配置房间/用户名' : cfg.networkName,
                         style: const TextStyle(fontSize: 12),
                       ),
                       leading: Icon(
-                        isRunningThis ? Icons.radio_button_checked : Icons.lan_outlined,
+                        isRunningThis
+                            ? Icons.radio_button_checked
+                            : Icons.sports_esports_outlined,
                         color: isRunningThis ? Colors.green : null,
                       ),
                       trailing: PopupMenuButton<String>(
@@ -283,6 +376,8 @@ class _ConfigViewState extends State<ConfigView> {
                             final cloned = cfg.clone();
                             provider.saveConfig(cloned);
                             _loadConfig(cloned);
+                          } else if (val == 'export') {
+                            _exportYamlConfig();
                           } else if (val == 'delete') {
                             if (provider.configs.length > 1) {
                               provider.deleteConfig(cfg.id);
@@ -291,14 +386,18 @@ class _ConfigViewState extends State<ConfigView> {
                               }
                             } else {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('至少需要保留一份网络配置')),
+                                const SnackBar(content: Text('至少需要保留一份配置')),
                               );
                             }
                           }
                         },
                         itemBuilder: (ctx) => [
-                          const PopupMenuItem(value: 'clone', child: Text('克隆副本')),
-                          const PopupMenuItem(value: 'delete', child: Text('删除配置')),
+                          const PopupMenuItem(
+                              value: 'clone', child: Text('克隆副本')),
+                          const PopupMenuItem(
+                              value: 'export', child: Text('导出为 YAML')),
+                          const PopupMenuItem(
+                              value: 'delete', child: Text('删除配置')),
                         ],
                       ),
                       onTap: () {
@@ -327,13 +426,26 @@ class _ConfigViewState extends State<ConfigView> {
                       Expanded(
                         child: Text(
                           '编辑配置',
-                          style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+                          style: theme.textTheme.headlineSmall
+                              ?.copyWith(fontWeight: FontWeight.bold),
                         ),
                       ),
                       OutlinedButton.icon(
+                        icon: const Icon(Icons.file_upload_outlined),
+                        label: const Text('导入 YAML'),
+                        onPressed: _importYamlConfig,
+                      ),
+                      const SizedBox(width: 8),
+                      OutlinedButton.icon(
+                        icon: const Icon(Icons.file_download_outlined),
+                        label: const Text('导出 YAML'),
+                        onPressed: _exportYamlConfig,
+                      ),
+                      const SizedBox(width: 8),
+                      OutlinedButton.icon(
                         icon: const Icon(Icons.code),
-                        label: const Text('查看 TOML'),
-                        onPressed: _showTomlPreview,
+                        label: const Text('查看 YAML'),
+                        onPressed: _showYamlPreview,
                       ),
                       const SizedBox(width: 12),
                       FilledButton.icon(
@@ -348,17 +460,22 @@ class _ConfigViewState extends State<ConfigView> {
                   // 基础配置
                   Card(
                     elevation: 0,
-                    color: theme.colorScheme.surfaceContainerHighest.withAlpha(40),
+                    color:
+                        theme.colorScheme.surfaceContainerHighest.withAlpha(40),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
-                      side: BorderSide(color: theme.colorScheme.outlineVariant.withAlpha(50)),
+                      side: BorderSide(
+                          color:
+                              theme.colorScheme.outlineVariant.withAlpha(50)),
                     ),
                     child: Padding(
                       padding: const EdgeInsets.all(20),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('基础组网参数', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                          Text('Easytier 基础参数',
+                              style: theme.textTheme.titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.bold)),
                           const SizedBox(height: 16),
                           Row(
                             children: [
@@ -367,7 +484,7 @@ class _ConfigViewState extends State<ConfigView> {
                                   controller: _profileNameCtrl,
                                   decoration: const InputDecoration(
                                     labelText: '配置别名',
-                                    hintText: '如: 家庭办公室网络',
+                                    hintText: '如: 幻兽帕鲁联机 / 我的世界开黑',
                                     border: OutlineInputBorder(),
                                   ),
                                   validator: (v) => v!.isEmpty ? '请输入别名' : null,
@@ -378,11 +495,12 @@ class _ConfigViewState extends State<ConfigView> {
                                 child: TextFormField(
                                   controller: _networkNameCtrl,
                                   decoration: const InputDecoration(
-                                    labelText: '网络名称 (network-name)',
-                                    hintText: '组网内所有设备必须保持一致',
+                                    labelText: '房间 (network-name)',
+                                    hintText: '对等节点需要进入相同房间才能互相连接',
                                     border: OutlineInputBorder(),
                                   ),
-                                  validator: (v) => v!.isEmpty ? '请输入网络名称' : null,
+                                  validator: (v) =>
+                                      v!.isEmpty ? '请输入房间名' : null,
                                 ),
                               ),
                             ],
@@ -392,8 +510,8 @@ class _ConfigViewState extends State<ConfigView> {
                             controller: _networkSecretCtrl,
                             obscureText: true,
                             decoration: const InputDecoration(
-                              labelText: '网络密钥 (network-secret)',
-                              hintText: '用于验证节点接入，留空则不设密码',
+                              labelText: '房间密码 (network-secret)',
+                              hintText: '留空则不设密码',
                               border: OutlineInputBorder(),
                             ),
                           ),
@@ -407,22 +525,29 @@ class _ConfigViewState extends State<ConfigView> {
                   // IP 规划
                   Card(
                     elevation: 0,
-                    color: theme.colorScheme.surfaceContainerHighest.withAlpha(40),
+                    color:
+                        theme.colorScheme.surfaceContainerHighest.withAlpha(40),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
-                      side: BorderSide(color: theme.colorScheme.outlineVariant.withAlpha(50)),
+                      side: BorderSide(
+                          color:
+                              theme.colorScheme.outlineVariant.withAlpha(50)),
                     ),
                     child: Padding(
                       padding: const EdgeInsets.all(20),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('IP 地址与 DHCP', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                          Text('虚拟局域网 IP 与 DHCP',
+                              style: theme.textTheme.titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.bold)),
                           const SizedBox(height: 12),
                           SwitchListTile(
                             contentPadding: EdgeInsets.zero,
-                            title: const Text('启用 DHCP 自动分配 IP (-d, --dhcp)'),
-                            subtitle: const Text('由 EasyTier 自动向当前网络分配不冲突的虚拟 IP'),
+                            title:
+                                const Text('启用 DHCP 自动分配局域网 IP (-d, --dhcp)'),
+                            subtitle:
+                                const Text('由 EasyTier 自动向房间内各节点分配不冲突的虚拟 IP'),
                             value: _useDhcp,
                             onChanged: (val) => setState(() => _useDhcp = val),
                           ),
@@ -434,7 +559,7 @@ class _ConfigViewState extends State<ConfigView> {
                                   child: TextFormField(
                                     controller: _ipv4Ctrl,
                                     decoration: const InputDecoration(
-                                      labelText: '静态 IPv4 地址 (-i, --ipv4)',
+                                      labelText: '静态局域网 IPv4 (-i, --ipv4)',
                                       hintText: '例: 10.144.144.1',
                                       border: OutlineInputBorder(),
                                     ),
@@ -445,7 +570,7 @@ class _ConfigViewState extends State<ConfigView> {
                                   child: TextFormField(
                                     controller: _ipv6Ctrl,
                                     decoration: const InputDecoration(
-                                      labelText: '静态 IPv6 地址 (--ipv6)',
+                                      labelText: '静态局域网 IPv6 (--ipv6)',
                                       hintText: '可选',
                                       border: OutlineInputBorder(),
                                     ),
@@ -464,10 +589,13 @@ class _ConfigViewState extends State<ConfigView> {
                   // 对等节点 (Peers)
                   Card(
                     elevation: 0,
-                    color: theme.colorScheme.surfaceContainerHighest.withAlpha(40),
+                    color:
+                        theme.colorScheme.surfaceContainerHighest.withAlpha(40),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
-                      side: BorderSide(color: theme.colorScheme.outlineVariant.withAlpha(50)),
+                      side: BorderSide(
+                          color:
+                              theme.colorScheme.outlineVariant.withAlpha(50)),
                     ),
                     child: Padding(
                       padding: const EdgeInsets.all(20),
@@ -480,9 +608,14 @@ class _ConfigViewState extends State<ConfigView> {
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text('对等节点 (-p, --peers)', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                                  Text('节点与中继 (-p, --peers)',
+                                      style: theme.textTheme.titleMedium
+                                          ?.copyWith(
+                                              fontWeight: FontWeight.bold)),
                                   const SizedBox(height: 4),
-                                  const Text('用于初始打通或中继的对等节点地址', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                  const Text('用于初始连接打通或中继协助的节点地址',
+                                      style: TextStyle(
+                                          fontSize: 12, color: Colors.grey)),
                                 ],
                               ),
                               FilledButton.tonalIcon(
@@ -494,7 +627,8 @@ class _ConfigViewState extends State<ConfigView> {
                           ),
                           const SizedBox(height: 12),
                           if (_peers.isEmpty)
-                            const Text('暂无节点，点击上方按钮添加', style: TextStyle(color: Colors.grey))
+                            const Text('暂无节点，点击上方按钮添加',
+                                style: TextStyle(color: Colors.grey))
                           else
                             Wrap(
                               spacing: 8,
@@ -503,7 +637,8 @@ class _ConfigViewState extends State<ConfigView> {
                                 return Chip(
                                   avatar: const Icon(Icons.link, size: 16),
                                   label: Text(peer),
-                                  onDeleted: () => setState(() => _peers.remove(peer)),
+                                  onDeleted: () =>
+                                      setState(() => _peers.remove(peer)),
                                 );
                               }).toList(),
                             ),
@@ -517,10 +652,13 @@ class _ConfigViewState extends State<ConfigView> {
                   // 子网代理
                   Card(
                     elevation: 0,
-                    color: theme.colorScheme.surfaceContainerHighest.withAlpha(40),
+                    color:
+                        theme.colorScheme.surfaceContainerHighest.withAlpha(40),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
-                      side: BorderSide(color: theme.colorScheme.outlineVariant.withAlpha(50)),
+                      side: BorderSide(
+                          color:
+                              theme.colorScheme.outlineVariant.withAlpha(50)),
                     ),
                     child: Padding(
                       padding: const EdgeInsets.all(20),
@@ -533,9 +671,14 @@ class _ConfigViewState extends State<ConfigView> {
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text('子网代理 (-n, --proxy-networks)', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                                  Text('子网代理 (-n, --proxy-networks)',
+                                      style: theme.textTheme.titleMedium
+                                          ?.copyWith(
+                                              fontWeight: FontWeight.bold)),
                                   const SizedBox(height: 4),
-                                  const Text('导出本地网段到虚拟网，使其他节点可访问本地设备', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                  const Text('导出本地网段到虚拟网，使其他节点可访问本地设备',
+                                      style: TextStyle(
+                                          fontSize: 12, color: Colors.grey)),
                                 ],
                               ),
                               FilledButton.tonalIcon(
@@ -547,7 +690,8 @@ class _ConfigViewState extends State<ConfigView> {
                           ),
                           const SizedBox(height: 12),
                           if (_proxyNetworks.isEmpty)
-                            const Text('未配置子网代理', style: TextStyle(color: Colors.grey))
+                            const Text('未配置子网代理',
+                                style: TextStyle(color: Colors.grey))
                           else
                             Wrap(
                               spacing: 8,
@@ -556,7 +700,8 @@ class _ConfigViewState extends State<ConfigView> {
                                 return Chip(
                                   avatar: const Icon(Icons.alt_route, size: 16),
                                   label: Text(proxy),
-                                  onDeleted: () => setState(() => _proxyNetworks.remove(proxy)),
+                                  onDeleted: () => setState(
+                                      () => _proxyNetworks.remove(proxy)),
                                 );
                               }).toList(),
                             ),
@@ -570,17 +715,22 @@ class _ConfigViewState extends State<ConfigView> {
                   // 端口与高级参数
                   Card(
                     elevation: 0,
-                    color: theme.colorScheme.surfaceContainerHighest.withAlpha(40),
+                    color:
+                        theme.colorScheme.surfaceContainerHighest.withAlpha(40),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
-                      side: BorderSide(color: theme.colorScheme.outlineVariant.withAlpha(50)),
+                      side: BorderSide(
+                          color:
+                              theme.colorScheme.outlineVariant.withAlpha(50)),
                     ),
                     child: Padding(
                       padding: const EdgeInsets.all(20),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('端口与高级选项', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                          Text('端口与高级选项',
+                              style: theme.textTheme.titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.bold)),
                           const SizedBox(height: 16),
                           Row(
                             children: [
@@ -631,4 +781,3 @@ class _ConfigViewState extends State<ConfigView> {
     );
   }
 }
-

@@ -3,8 +3,9 @@ class PeerInfo {
   final String peerId;
   final String ipv4;
   final String hostname;
+  final String? customUsername; // 自定义用户名
   final String tunnelType; // direct / relay
-  final String protocol;   // tcp / udp / wg / kcp
+  final String protocol; // tcp / udp / wg / kcp
   final int latencyMs;
   final int rxBytes;
   final int txBytes;
@@ -16,6 +17,7 @@ class PeerInfo {
     required this.peerId,
     required this.ipv4,
     this.hostname = '未知主机',
+    this.customUsername,
     this.tunnelType = 'Direct',
     this.protocol = 'TCP',
     this.latencyMs = 0,
@@ -26,11 +28,20 @@ class PeerInfo {
     this.isConnected = true,
   });
 
+  /// 对外展示的名称：优先展示用户名，若无则展示节点主机名
+  String get displayName {
+    if (customUsername != null && customUsername!.trim().isNotEmpty) {
+      return customUsername!.trim();
+    }
+    return hostname.isNotEmpty ? hostname : '未知节点';
+  }
+
   factory PeerInfo.fromJson(Map<String, dynamic> json) {
     return PeerInfo(
       peerId: json['peer_id']?.toString() ?? '',
       ipv4: json['ipv4']?.toString() ?? '',
       hostname: json['hostname']?.toString() ?? '未知节点',
+      customUsername: json['username']?.toString(),
       tunnelType: json['tunnel_type']?.toString() ?? 'Direct',
       protocol: json['protocol']?.toString() ?? 'TCP',
       latencyMs: (json['latency_ms'] as num?)?.toInt() ?? 0,
@@ -46,6 +57,7 @@ class PeerInfo {
         'peer_id': peerId,
         'ipv4': ipv4,
         'hostname': hostname,
+        'username': customUsername,
         'tunnel_type': tunnelType,
         'protocol': protocol,
         'latency_ms': latencyMs,
@@ -83,4 +95,3 @@ class NodeStatus {
     this.uptime = Duration.zero,
   });
 }
-

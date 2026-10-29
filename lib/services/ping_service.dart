@@ -18,7 +18,8 @@ class PingResult {
 class PingService {
   /// 对指定 IP 或主机名执行 Ping
   static Future<PingResult> ping(String target, {int count = 2}) async {
-    final host = target.replaceAll(RegExp(r'^(tcp|udp|wg|wss)://'), '').split(':').first;
+    final host =
+        target.replaceAll(RegExp(r'^(tcp|udp|wg|wss)://'), '').split(':').first;
     try {
       final isWindows = Platform.isWindows;
       final args = isWindows ? ['-n', '$count', host] : ['-c', '$count', host];
@@ -32,12 +33,15 @@ class PingService {
       int latency = 0;
       if (isSuccess) {
         // 解析平均延迟：如 "Average = 25ms" 或 "min/avg/max = 12/25/30 ms"
-        final match = RegExp(r'(?:Average|avg)[^\d]*(\d+)\s*ms', caseSensitive: false).firstMatch(output);
+        final match =
+            RegExp(r'(?:Average|avg)[^\d]*(\d+)\s*ms', caseSensitive: false)
+                .firstMatch(output);
         if (match != null) {
           latency = int.tryParse(match.group(1) ?? '0') ?? 0;
         } else {
           // 备用：匹配任意 time=xx ms
-          final timeMatch = RegExp(r'time[=<](\d+)\s*ms', caseSensitive: false).firstMatch(output);
+          final timeMatch = RegExp(r'time[=<](\d+)\s*ms', caseSensitive: false)
+              .firstMatch(output);
           latency = int.tryParse(timeMatch?.group(1) ?? '20') ?? 20;
         }
       }
@@ -58,4 +62,3 @@ class PingService {
     }
   }
 }
-

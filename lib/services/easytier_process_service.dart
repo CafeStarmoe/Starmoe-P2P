@@ -46,6 +46,7 @@ class EasyTierProcessService {
   Future<bool> start({
     required String corePath,
     required NetworkConfig config,
+    String? username,
     required LogCallback onLog,
     required StatusCallback onStatusChange,
   }) async {
@@ -61,6 +62,11 @@ class EasyTierProcessService {
     final workDir = isFileExist ? coreFile.parent.path : null;
 
     final args = config.toCommandLineArgs();
+    // 如果配置了自定义用户名，通过 --hostname 注入标识该节点
+    if (username != null && username.trim().isNotEmpty && !args.contains('--hostname')) {
+      args.addAll(['--hostname', username.trim()]);
+    }
+
     onLog('========================================================');
     onLog('[启动] 正在启动 EasyTier 核心服务...');
     onLog('[可执行文件] $_resolvedCorePath ${isFileExist ? "(已定位到本地程序)" : "(依赖系统 PATH)"}');

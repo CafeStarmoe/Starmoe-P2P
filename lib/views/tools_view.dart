@@ -11,10 +11,10 @@ class ToolsView extends StatefulWidget {
 }
 
 class _ToolsViewState extends State<ToolsView> {
-  final TextEditingController _targetCtrl = TextEditingController(text: 'public.easytier.cn');
+  final TextEditingController _targetCtrl =
+      TextEditingController(text: 'public.easytier.cn');
   bool _isTesting = false;
   PingResult? _lastResult;
-  final List<PingResult> _history = [];
 
   Future<void> _startPing() async {
     final target = _targetCtrl.text.trim();
@@ -29,7 +29,6 @@ class _ToolsViewState extends State<ToolsView> {
     setState(() {
       _isTesting = false;
       _lastResult = result;
-      _history.insert(0, result);
     });
   }
 
@@ -50,13 +49,15 @@ class _ToolsViewState extends State<ToolsView> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '网络诊断与测速工具',
-            style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+            '延迟测试工具',
+            style: theme.textTheme.headlineSmall
+                ?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
           Text(
-            '测试与组网节点或中继服务器的底层网络延迟与连通状态',
-            style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.outline),
+            '测试与对等节点或与中继服务器的真实往返延迟 (Ping) 与网络连通性',
+            style: theme.textTheme.bodyMedium
+                ?.copyWith(color: theme.colorScheme.outline),
           ),
           const SizedBox(height: 24),
 
@@ -66,14 +67,17 @@ class _ToolsViewState extends State<ToolsView> {
             color: theme.colorScheme.surfaceContainerHighest.withAlpha(40),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
-              side: BorderSide(color: theme.colorScheme.outlineVariant.withAlpha(50)),
+              side: BorderSide(
+                  color: theme.colorScheme.outlineVariant.withAlpha(50)),
             ),
             child: Padding(
               padding: const EdgeInsets.all(20.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('ICMP Ping 测速', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                  Text('延迟探测 (Ping)',
+                      style: theme.textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 16),
                   Row(
                     children: [
@@ -82,7 +86,7 @@ class _ToolsViewState extends State<ToolsView> {
                           controller: _targetCtrl,
                           decoration: const InputDecoration(
                             labelText: '目标 IP 或域名',
-                            hintText: '例如: 10.144.144.1 或 public.easytier.cn',
+                            hintText: '例如: 10.144.144.1 或 et.stmoe.cn',
                             border: OutlineInputBorder(),
                             prefixIcon: Icon(Icons.network_ping),
                           ),
@@ -92,17 +96,19 @@ class _ToolsViewState extends State<ToolsView> {
                       const SizedBox(width: 16),
                       FilledButton.icon(
                         style: FilledButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 24, vertical: 18),
                         ),
                         onPressed: _isTesting ? null : _startPing,
                         icon: _isTesting
                             ? const SizedBox(
                                 width: 18,
                                 height: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2, color: Colors.white),
                               )
                             : const Icon(Icons.play_arrow),
-                        label: Text(_isTesting ? '测速中...' : '开始测试'),
+                        label: Text(_isTesting ? '测试中' : '开始测试'),
                       ),
                     ],
                   ),
@@ -113,24 +119,26 @@ class _ToolsViewState extends State<ToolsView> {
                     runSpacing: 8,
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      const Text('快捷测试:', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                      const Text('快速测速:',
+                          style: TextStyle(fontSize: 12, color: Colors.grey)),
                       ActionChip(
-                        label: const Text('官方公共节点'),
+                        label: const Text('Starmoe中继节点'),
                         onPressed: () {
-                          _targetCtrl.text = 'public.easytier.cn';
+                          _targetCtrl.text = 'et.stmoe.cn';
                           _startPing();
                         },
                       ),
                       if (provider.virtualIp.isNotEmpty)
                         ActionChip(
-                          label: Text('本机虚拟IP (${provider.virtualIp})'),
+                          label: Text(
+                              '我的IP (${provider.username.isNotEmpty ? provider.username : provider.virtualIp})'),
                           onPressed: () {
                             _targetCtrl.text = provider.virtualIp;
                             _startPing();
                           },
                         ),
                       ...provider.peers.map((p) => ActionChip(
-                            label: Text('${p.hostname} (${p.ipv4})'),
+                            label: Text('${p.displayName} (${p.ipv4})'),
                             onPressed: () {
                               _targetCtrl.text = p.ipv4;
                               _startPing();
@@ -147,17 +155,23 @@ class _ToolsViewState extends State<ToolsView> {
 
           // 测试结果与历史记录
           if (_lastResult != null) ...[
-            Text('测试结果', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+            Text('测试结果',
+                style: theme.textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
             Card(
               elevation: 0,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
                 side: BorderSide(
-                  color: _lastResult!.isSuccess ? Colors.green.withAlpha(80) : Colors.red.withAlpha(80),
+                  color: _lastResult!.isSuccess
+                      ? Colors.green.withAlpha(80)
+                      : Colors.red.withAlpha(80),
                 ),
               ),
-              color: _lastResult!.isSuccess ? Colors.green.withAlpha(20) : Colors.red.withAlpha(20),
+              color: _lastResult!.isSuccess
+                  ? Colors.green.withAlpha(20)
+                  : Colors.red.withAlpha(20),
               child: Padding(
                 padding: const EdgeInsets.all(20),
                 child: Column(
@@ -166,8 +180,12 @@ class _ToolsViewState extends State<ToolsView> {
                     Row(
                       children: [
                         Icon(
-                          _lastResult!.isSuccess ? Icons.check_circle : Icons.cancel,
-                          color: _lastResult!.isSuccess ? Colors.green : Colors.red,
+                          _lastResult!.isSuccess
+                              ? Icons.check_circle
+                              : Icons.cancel,
+                          color: _lastResult!.isSuccess
+                              ? Colors.green
+                              : Colors.red,
                           size: 28,
                         ),
                         const SizedBox(width: 12),
@@ -176,14 +194,17 @@ class _ToolsViewState extends State<ToolsView> {
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
-                            color: _lastResult!.isSuccess ? Colors.green.shade800 : Colors.red.shade800,
+                            color: _lastResult!.isSuccess
+                                ? Colors.green.shade800
+                                : Colors.red.shade800,
                           ),
                         ),
                         const Spacer(),
                         if (_lastResult!.isSuccess)
                           Text(
                             '往返平均延迟: ${_lastResult!.latencyMs} ms',
-                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                            style: const TextStyle(
+                                fontSize: 16, fontWeight: FontWeight.bold),
                           ),
                       ],
                     ),
@@ -192,7 +213,8 @@ class _ToolsViewState extends State<ToolsView> {
                     const SizedBox(height: 12),
                     SelectableText(
                       _lastResult!.rawOutput.trim(),
-                      style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+                      style: const TextStyle(
+                          fontFamily: 'monospace', fontSize: 12),
                     ),
                   ],
                 ),
@@ -204,4 +226,3 @@ class _ToolsViewState extends State<ToolsView> {
     );
   }
 }
-

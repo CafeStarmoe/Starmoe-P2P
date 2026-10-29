@@ -20,17 +20,17 @@ class StatusBadge extends StatelessWidget {
     if (isConnecting) {
       bg = Colors.amber.withAlpha(40);
       fg = Colors.amber.shade800;
-      text = '正在连接...';
+      text = '正在启动';
       icon = Icons.sync;
     } else if (isRunning) {
       bg = Colors.green.withAlpha(40);
       fg = Colors.green.shade700;
-      text = '组网运行中';
-      icon = Icons.check_circle_outline;
+      text = '已启动';
+      icon = Icons.sports_esports;
     } else {
       bg = Colors.grey.withAlpha(40);
       fg = Colors.grey.shade600;
-      text = '未连接';
+      text = '未启动';
       icon = Icons.power_settings_new;
     }
 
@@ -59,4 +59,3 @@ class StatusBadge extends StatelessWidget {
     );
   }
 }
-

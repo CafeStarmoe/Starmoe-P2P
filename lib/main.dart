@@ -30,7 +30,13 @@ class EasyTierApp extends StatelessWidget {
           seedColor: const Color(0xFF0066FF),
           brightness: Brightness.light,
         ),
-        fontFamily: 'Segoe UI',
+        fontFamily: 'MiSans',
+        fontFamilyFallback: const [
+          'MiSans Normal',
+          'Segoe UI',
+          'Microsoft YaHei',
+          'sans-serif',
+        ],
         cardTheme: const CardThemeData(
           margin: EdgeInsets.zero,
         ),
@@ -41,7 +47,13 @@ class EasyTierApp extends StatelessWidget {
           seedColor: const Color(0xFF0066FF),
           brightness: Brightness.dark,
         ),
-        fontFamily: 'Segoe UI',
+        fontFamily: 'MiSans',
+        fontFamilyFallback: const [
+          'MiSans Normal',
+          'Segoe UI',
+          'Microsoft YaHei',
+          'sans-serif',
+        ],
         cardTheme: const CardThemeData(
           margin: EdgeInsets.zero,
         ),

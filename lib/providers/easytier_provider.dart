@@ -5,6 +5,7 @@ import '../models/network_config.dart';
 import '../models/peer_info.dart';
 import '../models/app_settings.dart';
 import '../models/core_version_info.dart';
+import '../models/room.dart';
 import '../services/storage_service.dart';
 import '../services/easytier_process_service.dart';
 import '../services/easytier_updater_service.dart';
@@ -15,6 +16,10 @@ class EasyTierProvider extends ChangeNotifier {
   List<NetworkConfig> _configs = [];
   NetworkConfig? _currentConfig;
   AppSettings _settings = AppSettings();
+
+  // 虚拟房间管理
+  List<Room> _rooms = [];
+  Room? _currentRoom;
 
   bool _isConnecting = false;
   bool _isRunning = false;
@@ -47,6 +52,8 @@ class EasyTierProvider extends ChangeNotifier {
   List<NetworkConfig> get configs => _configs;
   NetworkConfig? get currentConfig => _currentConfig;
   AppSettings get settings => _settings;
+  List<Room> get rooms => List.unmodifiable(_rooms);
+  Room? get currentRoom => _currentRoom;
   bool get isConnecting => _isConnecting;
   bool get isRunning => _isRunning;
   String get virtualIp => _virtualIp;
@@ -72,6 +79,7 @@ class EasyTierProvider extends ChangeNotifier {
   Future<void> _init() async {
     _settings = await StorageService.loadSettings();
     _configs = await StorageService.loadConfigs();
+    _rooms = await StorageService.loadRooms();
 
     if (_configs.isNotEmpty) {
       if (_settings.selectedConfigId.isNotEmpty) {
@@ -92,6 +100,67 @@ class EasyTierProvider extends ChangeNotifier {
 
     if (_settings.autoStartCoreOnLaunch && _currentConfig != null) {
       startService();
+    }
+  }
+
+  // ==================== 虚拟房间管理逻辑 ====================
+
+  /// 添加或更新房间
+  Future<void> saveRoom(Room room) async {
+    final idx = _rooms.indexWhere((r) => r.id == room.id);
+    if (idx >= 0) {
+      _rooms[idx] = room;
+    } else {
+      _rooms.insert(0, room);
+    }
+    await StorageService.saveRooms(_rooms);
+    notifyListeners();
+  }
+
+  /// 删除房间
+  Future<void> deleteRoom(String roomId) async {
+    if (_currentRoom?.id == roomId && _isRunning) {
+      await stopService();
+      _currentRoom = null;
+    }
+    _rooms.removeWhere((r) => r.id == roomId);
+    await StorageService.saveRooms(_rooms);
+    notifyListeners();
+  }
+
+  /// 进入并一键连接指定虚拟房间
+  Future<bool> joinAndConnectRoom(Room room) async {
+    if (_isRunning) {
+      _addLog('[房间切换] 正在退出上一网络连接...');
+      await stopService();
+    }
+
+    _currentRoom = room;
+    // 基于房间属性临时构造/切换为当前网络配置
+    final roomCfg = room.toNetworkConfig();
+    _currentConfig = roomCfg;
+    notifyListeners();
+
+    _addLog('[虚拟房间] 正在进入房间:「${room.name}」(分类: ${room.category.label})...');
+    final success = await startService();
+    if (success) {
+      room.isConnected = true;
+    } else {
+      _currentRoom = null;
+    }
+    notifyListeners();
+    return success;
+  }
+
+  /// 退出当前房间连接
+  Future<void> leaveRoom() async {
+    if (_currentRoom != null) {
+      _addLog('[虚拟房间] 已离开房间「${_currentRoom!.name}」');
+      _currentRoom = null;
+      if (_isRunning) {
+        await stopService();
+      }
+      notifyListeners();
     }
   }
 
@@ -141,7 +210,6 @@ class EasyTierProvider extends ChangeNotifier {
       return false;
     }
 
-    // 1. 若当前正在运行，必须先安全停止服务
     if (_isRunning) {
       _addLog('[自动更新] 正在停止运行中的 EasyTier 服务以释放文件占用...');
       await stopService();
@@ -169,7 +237,6 @@ class EasyTierProvider extends ChangeNotifier {
       _addLog('[自动更新] 核心运行库升级替换成功！');
       await refreshCurrentVersion();
 
-      // 重新检查更新状态以标记已是最新
       if (_versionInfo != null) {
         _versionInfo = CoreVersionInfo(
           currentVersion: _currentCoreVersion,
@@ -196,8 +263,9 @@ class EasyTierProvider extends ChangeNotifier {
 
   /// 切换当前配置
   void selectConfig(NetworkConfig config) {
-    if (_isRunning) return; // 运行中不允许直接热切换
+    if (_isRunning) return;
     _currentConfig = config;
+    _currentRoom = null;
     _settings.selectedConfigId = config.id;
     StorageService.saveSettings(_settings);
     notifyListeners();
@@ -236,6 +304,16 @@ class EasyTierProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  String get username => _settings.username;
+
+  /// 更新自定义用户名
+  Future<void> updateUsername(String newName) async {
+    _settings.username = newName.trim();
+    await StorageService.saveSettings(_settings);
+    _addLog('[用户] 用户名已更新为:「${_settings.username}」');
+    notifyListeners();
+  }
+
   /// 启动组网服务
   Future<bool> startService() async {
     if (_currentConfig == null) {
@@ -249,6 +327,7 @@ class EasyTierProvider extends ChangeNotifier {
     final success = await _processService.start(
       corePath: _settings.coreExecutablePath,
       config: _currentConfig!,
+      username: _settings.username,
       onLog: (line, {bool isError = false}) {
         _addLog(line, isError: isError);
       },
@@ -258,6 +337,7 @@ class EasyTierProvider extends ChangeNotifier {
         _startedAt = _processService.startedAt;
         if (!_isRunning) {
           _stopMetrics();
+          _currentRoom = null;
         }
         notifyListeners();
       },
@@ -271,6 +351,7 @@ class EasyTierProvider extends ChangeNotifier {
       _startMetrics();
     } else {
       _isRunning = false;
+      _currentRoom = null;
     }
     notifyListeners();
     return success;
@@ -283,6 +364,7 @@ class EasyTierProvider extends ChangeNotifier {
     _isRunning = false;
     _virtualIp = '';
     _startedAt = null;
+    _currentRoom = null;
     _stopMetrics();
     _addLog('[停止] EasyTier 服务已安全停止。');
     notifyListeners();
@@ -320,8 +402,8 @@ class EasyTierProvider extends ChangeNotifier {
     _metricsTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!_isRunning) return;
       final random = Random();
-      _uploadSpeed = random.nextInt(1024 * 300); // 0 ~ 300 KB/s
-      _downloadSpeed = random.nextInt(1024 * 800); // 0 ~ 800 KB/s
+      _uploadSpeed = random.nextInt(1024 * 300);
+      _downloadSpeed = random.nextInt(1024 * 800);
       _totalUploaded += _uploadSpeed;
       _totalDownloaded += _downloadSpeed;
       notifyListeners();
@@ -355,7 +437,8 @@ class EasyTierProvider extends ChangeNotifier {
         const PeerInfo(
           peerId: 'p2p-node-8891',
           ipv4: '10.144.144.1',
-          hostname: 'Office-Desktop (Win11)',
+          hostname: 'DESKTOP-89F12A',
+          customUsername: '队友·星河',
           tunnelType: 'P2P Direct',
           protocol: 'UDP',
           latencyMs: 16,
@@ -365,7 +448,8 @@ class EasyTierProvider extends ChangeNotifier {
         const PeerInfo(
           peerId: 'p2p-node-3021',
           ipv4: '10.144.144.3',
-          hostname: 'Home-NAS (Linux)',
+          hostname: 'UBUNTU-SERVER',
+          customUsername: '开黑联机服',
           tunnelType: 'P2P Direct',
           protocol: 'WireGuard',
           latencyMs: 24,
@@ -375,7 +459,8 @@ class EasyTierProvider extends ChangeNotifier {
         const PeerInfo(
           peerId: 'relay-srv-01',
           ipv4: '10.144.144.254',
-          hostname: 'Public Relay Server',
+          hostname: 'public.easytier.cn',
+          customUsername: '官方公共中继',
           tunnelType: 'Relay',
           protocol: 'TCP',
           latencyMs: 48,
